@@ -13,7 +13,6 @@ const port = 3000;
 app.use(express.json());
 
 
-
 connectDatabase().then(db => {
     const userController = new UserController(db);
     const leagueController = new LeagueController(db);
