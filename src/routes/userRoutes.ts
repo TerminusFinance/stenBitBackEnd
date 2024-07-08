@@ -17,7 +17,7 @@ function userRouter(userController: UserController) {
     router.get('/:userId', async (req: Request, res: Response) => {
         const userId = req.params.userId;
         try {
-            const user = await userController.getUserById(userId);
+            const user = await userController.getUserFromId(userId);
             if (!user) {
                 res.status(404).json({ message: 'User not found' });
             } else {
@@ -69,6 +69,7 @@ function userRouter(userController: UserController) {
             res.status(400).json({ message: error });
         }
     });
+
 
     return router;
 }

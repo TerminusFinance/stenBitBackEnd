@@ -6,12 +6,14 @@ import userRouter from "./routes/userRoutes";
 import UserController from "./controllers/userController";
 import leagueRouter from "./routes/leagueRouter";
 import LeagueController from "./controllers/leagueController";
+import taskRouter from "./routes/taskRouter";
+import cors from 'cors';
 
 const app = express();
 const port = 3000;
 
 app.use(express.json());
-
+app.use(cors());
 
 connectDatabase().then(db => {
     const userController = new UserController(db);
@@ -19,6 +21,7 @@ connectDatabase().then(db => {
 
     app.use('/users', userRouter(userController));
     app.use('/leagues', leagueRouter(leagueController));
+    app.use('/task', taskRouter(userController));
 
     app.listen(port, () => {
         console.log(`Server is running on port ${port}`);

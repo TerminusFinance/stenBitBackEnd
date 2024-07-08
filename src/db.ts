@@ -9,49 +9,84 @@ export async function connectDatabase(): Promise<Database> {
 
     await db.exec(`
         CREATE TABLE IF NOT EXISTS users (
-                                             userId TEXT PRIMARY KEY,
-                                             userName TEXT,
-                                             coins INTEGER DEFAULT 0,
-                                             codeToInvite TEXT,
-                                             address TEXT,
-                                             referral TEXT,
-                                             createAt TEXT,
-                                             dataUpdate TEXT,
-                                             listUserInvited TEXT,
-                                             currentEnergy INTEGER DEFAULT 0,
-                                             maxEnergy INTEGER DEFAULT 0,
-                                             lastTapBootUpdate TEXT DEFAULT NULL
+            userId TEXT PRIMARY KEY,
+            userName TEXT,
+            coins INTEGER DEFAULT 0,
+            codeToInvite TEXT,
+            address TEXT,
+            referral TEXT,
+            createAt TEXT,
+            dataUpdate TEXT,
+            currentEnergy INTEGER DEFAULT 0,
+            maxEnergy INTEGER DEFAULT 0,
+            lastTapBootUpdate TEXT DEFAULT NULL
         );
 
         CREATE TABLE IF NOT EXISTS completedTasks (
-                                                      userId TEXT,
-                                                      taskId INTEGER,
-                                                      PRIMARY KEY (userId, taskId),
+            userId TEXT,
+            taskId INTEGER,
+            PRIMARY KEY (userId, taskId),
             FOREIGN KEY (userId) REFERENCES users(userId)
-            );
+        );
 
         CREATE TABLE IF NOT EXISTS leagueLevels (
-                                                    level TEXT PRIMARY KEY,
-                                                    maxEnergy INTEGER,
-                                                    minCoins INTEGER,
-                                                    maxCoins INTEGER
+            level TEXT PRIMARY KEY,
+            maxEnergy INTEGER,
+            minCoins INTEGER,
+            maxCoins INTEGER
         );
 
         CREATE TABLE IF NOT EXISTS boosts (
-                                              boostName TEXT PRIMARY KEY,
-                                              price INTEGER,
-                                              level INTEGER DEFAULT 1
+            boostName TEXT PRIMARY KEY,
+            price INTEGER,
+            level INTEGER DEFAULT 1
         );
 
         CREATE TABLE IF NOT EXISTS userBoosts (
-                                                  userId TEXT,
-                                                  boostName TEXT,
-                                                  level INTEGER DEFAULT 1,
-                                                  FOREIGN KEY (userId) REFERENCES users(userId),
+            userId TEXT,
+            boostName TEXT,
+            level INTEGER DEFAULT 1,
+            FOREIGN KEY (userId) REFERENCES users(userId),
             FOREIGN KEY (boostName) REFERENCES boosts(boostName),
             PRIMARY KEY (userId, boostName)
-            );
+        );
 
+        CREATE TABLE IF NOT EXISTS user_invitations (
+            inviter_id TEXT,
+            invitee_id TEXT,
+            coinsReferral INTEGER DEFAULT 0,
+            FOREIGN KEY (inviter_id) REFERENCES users(userId),
+            FOREIGN KEY (invitee_id) REFERENCES users(userId),
+            PRIMARY KEY (inviter_id, invitee_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            text TEXT,
+            coins INTEGER,
+            checkIcon TEXT,
+            taskType TEXT,
+            type TEXT,
+            actionBtnTx TEXT DEFAULT NULL,
+            txDescription TEXT DEFAULT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS userTasks (
+            userId TEXT,
+            taskId INTEGER,
+            text TEXT,
+            coins INTEGER,
+            checkIcon TEXT,
+            taskType TEXT,
+            type TEXT,
+            completed BOOLEAN DEFAULT 0,
+            lastCompletedDate TEXT DEFAULT NULL,
+            actionBtnTx TEXT DEFAULT NULL,
+            txDescription TEXT DEFAULT NULL,
+            FOREIGN KEY (userId) REFERENCES users(userId),
+            FOREIGN KEY (taskId) REFERENCES tasks(id),
+            PRIMARY KEY (userId, taskId)
+        );
         INSERT OR IGNORE INTO boosts (boostName, price, level) VALUES
             ('multitap', 2000, 1),
             ('energy limit', 1500, 1),
@@ -65,60 +100,33 @@ export async function connectDatabase(): Promise<Database> {
             ('platinum', 15000, 100001, 1000000);
     `);
 
+    // Run migrations
+    await migrateDatabase(db);
+
     return db;
 }
 
+// Migration function to add new columns to the tasks and userTasks table if they don't exist
+async function migrateDatabase(db: Database): Promise<void> {
+    const existingTaskColumnsSql = `PRAGMA table_info(tasks)`;
+    const existingTaskColumns = await db.all(existingTaskColumnsSql);
+
+    if (!existingTaskColumns.some((col) => col.name === 'actionBtnTx')) {
+        await db.exec(`ALTER TABLE tasks ADD COLUMN actionBtnTx TEXT DEFAULT NULL`);
+    }
+    if (!existingTaskColumns.some((col) => col.name === 'txDescription')) {
+        await db.exec(`ALTER TABLE tasks ADD COLUMN txDescription TEXT DEFAULT NULL`);
+    }
+
+    const existingUserTaskColumnsSql = `PRAGMA table_info(userTasks)`;
+    const existingUserTaskColumns = await db.all(existingUserTaskColumnsSql);
+
+    if (!existingUserTaskColumns.some((col) => col.name === 'actionBtnTx')) {
+        await db.exec(`ALTER TABLE userTasks ADD COLUMN actionBtnTx TEXT DEFAULT NULL`);
+    }
+    if (!existingUserTaskColumns.some((col) => col.name === 'txDescription')) {
+        await db.exec(`ALTER TABLE userTasks ADD COLUMN txDescription TEXT DEFAULT NULL`);
+    }
+}
+
 export default connectDatabase();
-
-
-
-
-// import sqlite3 from 'sqlite3';
-// import { open, Database } from 'sqlite';
-//
-// export async function connectDatabase(): Promise<Database> {
-//     const db = await open({
-//         filename: './mydatabase.db',
-//         driver: sqlite3.Database,
-//     });
-//
-//     await db.exec(`
-//         CREATE TABLE IF NOT EXISTS users (
-//             userId TEXT PRIMARY KEY,
-//             userName TEXT,
-//             coins INTEGER DEFAULT 0,
-//             codeToInvite TEXT,
-//             address TEXT,
-//             referral TEXT,
-//             createAt TEXT,
-//             dataUpdate TEXT,
-//             listUserInvited TEXT,
-//             currentEnergy INTEGER DEFAULT 0,
-//             maxEnergy INTEGER DEFAULT 0
-//         );
-//
-//         CREATE TABLE IF NOT EXISTS completedTasks (
-//             userId TEXT,
-//             taskId INTEGER,
-//             PRIMARY KEY (userId, taskId),
-//             FOREIGN KEY (userId) REFERENCES users(userId)
-//         );
-//
-//         CREATE TABLE IF NOT EXISTS leagueLevels (
-//             level TEXT PRIMARY KEY,
-//             maxEnergy INTEGER,
-//             minCoins INTEGER,
-//             maxCoins INTEGER
-//         );
-//
-//         INSERT OR IGNORE INTO leagueLevels (level, maxEnergy, minCoins, maxCoins) VALUES
-//             ('bronze', 500, 0, 5000),
-//             ('silver', 1500, 5001, 25000),
-//             ('gold', 2000, 25001, 100000),
-//             ('platinum', 15000, 100001, 1000000);
-//     `);
-//
-//     return db;
-// }
-//
-// export default connectDatabase();
