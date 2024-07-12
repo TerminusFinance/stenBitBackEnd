@@ -4,11 +4,14 @@
   "main": "index.js",
   "license": "MIT",
   "dependencies": {
+    "@telegram-apps/init-data-node": "^1.0.1",
+    "axios": "^1.7.2",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "greenlock-express": "^4.0.3",
+    "node-telegram-bot-api": "^0.66.0",
     "redis": "^4.6.14",
     "reflect-metadata": "^0.2.2",
     "sqlite": "^5.1.1",
@@ -19,6 +22,7 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/node": "^20.14.9",
+    "@types/node-telegram-bot-api": "^0.64.7",
     "ts-node": "^10.9.2",
     "typescript": "^5.5.2"
   },

@@ -1,72 +1,102 @@
-import express, { Request, Response } from 'express';
+import express, {Request, Response} from 'express';
 import UserController from '../controllers/userController';
+import {authMiddleware} from "../auth/authMiddleware";
+import {InitDataParsed} from "@telegram-apps/init-data-node";
 
 const router = express.Router();
 
 function userRouter(userController: UserController) {
-    router.post('/', async (req: Request, res: Response) => {
-        const { userId, userName, coins, address } = req.body;
+    router.post('/createNewUsers', authMiddleware, async (req: Request, res: Response) => {
+        const {coins, address} = req.body;
         try {
-            const user = await userController.createUser(userId, userName, coins, address);
-            res.status(201).json(user);
+            const initData = res.locals.initData as InitDataParsed;
+            const userId = initData.user?.id
+            const name = initData.user?.firstName
+            if (userId != undefined && name != undefined) {
+                const user = await userController.createUser(userId.toString(), name, coins, address);
+                res.status(201).json(user);
+            }
         } catch (error) {
-            res.status(400).json({ message: error });
+            res.status(400).json({message: error});
         }
     });
 
-    router.get('/:userId', async (req: Request, res: Response) => {
-        const userId = req.params.userId;
+    router.get('/getUser', authMiddleware, async (req: Request, res: Response) => {
+
         try {
-            const user = await userController.getUserFromId(userId);
-            if (!user) {
-                res.status(404).json({ message: 'User not found' });
-            } else {
-                res.status(200).json(user);
+            const initData = res.locals.initData as InitDataParsed;
+
+            const id = initData.user?.id
+            if (id != undefined) {
+                const user = await userController.getUserFromId(id.toString());
+                if (!user) {
+                    res.status(404).json({message: 'User not found'});
+                } else {
+                    res.status(200).json(user);
+                }
             }
         } catch (error) {
             console.error('Ошибка при обновлении буста:', error);
-            res.status(400).json({ message: error });
+            res.status(400).json({message: error});
         }
     });
 
-    router.put('/:userId', async (req: Request, res: Response) => {
-        const userId = req.params.userId;
+    router.put('/updateUsers', authMiddleware, async (req: Request, res: Response) => {
         try {
-            const updatedUser = await userController.updateUser(userId, req.body);
-            res.status(200).json(updatedUser);
+            const initData = res.locals.initData as InitDataParsed;
+
+            const id = initData.user?.id
+            if (id != undefined) {
+                const updatedUser = await userController.updateUser(id.toString(), req.body);
+                res.status(200).json(updatedUser);
+            }
         } catch (error) {
-            res.status(400).json({ message: error });
+            console.error(error)
+            res.status(400).json({message: error});
         }
     });
 
-    router.post('/process-invitation', async (req: Request, res: Response) => {
-        const { inviteCode, newUserId, newUserName } = req.body;
+    router.post('/addCoins', authMiddleware, async (req: Request, res: Response) => {
         try {
-            const newUser = await userController.processInvitation(inviteCode, newUserId, newUserName);
-            res.status(201).json(newUser);
+            const {coins} = req.body;
+            const initData = res.locals.initData as InitDataParsed;
+            const id = initData.user?.id
+            if (id != undefined) {
+                const updatedUser = await userController.addCoinsAndDeductEnergy(id.toString(), coins);
+                res.status(200).json(updatedUser);
+            }
         } catch (error) {
-            res.status(400).json({ message: error });
+            console.error(error)
+            res.status(400).json({message: error});
         }
     });
 
-
-    router.post('/processInvitation', async (req, res) => {
+    router.post('/processInvitation', authMiddleware, async (req, res) => {
         try {
-            const { inviteCode, newUserId, newUserName } = req.body;
-            const user = await userController.processInvitation(inviteCode, newUserId, newUserName);
-            res.status(201).json(user);
+            const {inviteCode} = req.body;
+            const initData = res.locals.initData as InitDataParsed;
+            const userId = initData.user?.id
+            const name = initData.user?.firstName
+            if (userId != undefined && name != undefined) {
+                const user = await userController.processInvitation(inviteCode, userId.toString(), name);
+                res.status(201).json(user);
+            }
         } catch (error) {
-            res.status(400).json({ message: error });
+            res.status(400).json({message: error});
         }
     });
 
-    router.post('/updateBoost', async (req, res) => {
+    router.post('/updateBoost', authMiddleware, async (req, res) => {
         try {
-            const { userId, boostName } = req.body;
-            const user = await userController.updateBoost(userId, boostName);
-            res.status(200).json(user);
+            const {boostName} = req.body;
+            const initData = res.locals.initData as InitDataParsed;
+            const userId = initData.user?.id
+            if (userId != undefined) {
+                const user = await userController.updateBoost(userId.toString(), boostName);
+                res.status(200).json(user);
+            }
         } catch (error) {
-            res.status(400).json({ message: error });
+            res.status(400).json({message: error});
         }
     });
 
