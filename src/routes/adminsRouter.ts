@@ -21,11 +21,25 @@ function adminsRouter(adminsController: AdminsController) {
 
     router.post('/deleteUser', authFromCode, async (req, res) => {
         try {
-            const {userId} =req.body()
+            const {userId} = req.body;
 
             const result = await adminsController.deleteUserById(userId);
-            res.status(200).json("Success delete");
+            res.status(200).json(result);
         } catch (error) {
+            console.error("error in delete users",error)
+            res.status(400).json({ message: error });
+        }
+    });
+
+
+    router.post('/updateUser', authFromCode, async (req, res) => {
+        try {
+            const {userId} = req.body;
+            const {updatedData} = req.body;
+            const result = await adminsController.updateUser(userId, updatedData);
+            res.status(200).json(result);
+        } catch (error) {
+            console.error("error in update users",error)
             res.status(400).json({ message: error });
         }
     });

@@ -1,118 +1,16 @@
 import {Database} from 'sqlite';
 import {isUserSubscribed, sendToCheckUserHaveNftFromCollections} from "../tonWork/CheckToNftitem";
+import {
+    Boost,
+    IsCheckNftTask, IsOpenUrl, IsStockReg,
+    IsSubscribeToTg,
+    TaskCardProps,
+    TaskType,
+    User,
+    UserBoost,
+    UserTask
+} from "../types/Types";
 
-export interface User {
-    userId: string;
-    userName: string;
-    coins: number;
-    codeToInvite: string;
-    address: string;
-    referral: string;
-    createAt: string;
-    dataUpdate: string;
-    currentEnergy: number;
-    maxEnergy: number;
-    lastTapBootUpdate: string;
-    completedTasks?: number[];
-    boosts?: UserBoost[];
-    listUserInvited?: InvitedUser[];
-    tasks?: UserTask[];
-}
-
-export interface UserBoost {
-    boostName: string;
-    level: number;
-    price: number;
-}
-
-export interface InvitedUser {
-    userId: string;
-    userName: string;
-    coinsReferral: number;
-}
-
-export interface UserTask {
-    taskId: number;
-    text: string;
-    coins: number;
-    checkIcon: string;
-    taskType: TaskType;
-    type: string;
-    completed: boolean;
-    lastCompletedDate?: string | null;
-    actionBtnTx?: string | null;
-    txDescription?: string | null;
-    etaps?: number | null;
-    dataSendCheck?: string | null
-}
-
-export interface TaskCardProps {
-    id: number;
-    text: string;
-    coins: number;
-    completed: boolean;
-    checkIcon: string;
-    taskType: TaskType;
-    type: string;
-    actionBtnTx?: string | null;
-    txDescription?: string | null;
-}
-
-
-export interface SampleTask {
-    type: 'Sample';
-}
-
-export interface OpenUrlTask {
-    type: 'OpenUrl';
-    url: string;
-}
-
-export interface CheckNftTask {
-    type: 'CheckNft';
-    checkCollectionsAddress: string;
-}
-
-export interface StockRegTask {
-    type: 'StockReg';
-    url: string;
-}
-
-export interface CheckFriendsTask {
-    type: 'CheckFriends';
-    numberOfFriends: number;
-}
-
-export interface SubscribeToTgTask {
-    type: 'SubscribeToTg';
-    url: string;
-    id: string;
-}
-
-export type TaskType = SampleTask | OpenUrlTask | CheckNftTask | CheckFriendsTask | SubscribeToTgTask | StockRegTask;
-
-export const IsCheckNftTask = (taskType: TaskType): taskType is CheckNftTask => {
-    return taskType.type === 'CheckNft';
-};
-
-export const IsSubscribeToTg = (taskType: TaskType): taskType is SubscribeToTgTask => {
-    return taskType.type === 'SubscribeToTg';
-};
-
-export const IsOpenUrl = (taskType: TaskType): taskType is OpenUrlTask => {
-    return taskType.type === 'OpenUrl';
-};
-
-export const IsStockReg = (taskType: TaskType): taskType is StockRegTask => {
-    return taskType.type === 'StockReg';
-};
-
-interface Boost {
-    boostName: string;
-    description: string;
-    level: number;
-    price: number;
-}
 
 class UserController {
     constructor(private db: Database) {
@@ -125,7 +23,7 @@ class UserController {
     async createUser(userId: string, userName: string, coins: number, address: string): Promise<User> {
         try {
             // Проверка, существует ли уже пользователь с таким userId
-            const existingUser = await this.getUserFromId(userId);
+            const existingUser = await this.getUserFromId(userId, null);
             if (existingUser) {
                 throw new Error(`User with userId ${userId} already exists`);
             }
@@ -137,8 +35,8 @@ class UserController {
             const createUserSql = `
                 INSERT INTO users (userId, userName, coins, codeToInvite, address, referral, createAt, dataUpdate,
                                    currentEnergy, maxEnergy)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0)
-            `;
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1000, 1000) `;
+
             await this.db.run(createUserSql, [userId, userName, coins, codeToInvite, address, '', createAt, dataUpdate]);
 
             // Инициализация бустов для нового пользователя
@@ -153,23 +51,31 @@ class UserController {
                                         VALUES (?, ?, ?)`;
             for (const boost of boosts) {
                 await this.db.run(insertUserBoostSql, [userId, boost.boostName, boost.level]);
-                console.log(`Inserted boost for user ${userId}:`, boost);
             }
 
             // Инициализация задач для нового пользователя
-            const tasksSql = `SELECT *
+            const tasksSql = `SELECT id,
+                                     text,
+                                     coins,
+                                     checkIcon,
+                                     taskType,
+                                     type,
+                                     actionBtnTx,
+                                     txDescription
                               FROM tasks`;
             const allTasks = await this.db.all(tasksSql);
 
+
             const insertUserTaskSql = `
-                INSERT INTO userTasks (userId, taskId, completed, lastCompletedDate, actionBtnTx, txDescription)
-                VALUES (?, ?, 0, null, ?, ?)
+                INSERT INTO userTasks (userId, taskId, text, coins, checkIcon, taskType, type, completed,
+                                       lastCompletedDate, actionBtnTx, txDescription)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 0, null, ?, ?)
             `;
             for (const task of allTasks) {
-                await this.db.run(insertUserTaskSql, [userId, task.id, task.actionBtnTx, task.txDescription]);
+                await this.db.run(insertUserTaskSql, [userId, task.id, task.text, task.coins, task.checkIcon, task.taskType, task.type, task.actionBtnTx, task.txDescription]);
             }
 
-            const newUser = await this.getUserFromId(userId);
+            const newUser = await this.getUserFromId(userId, null);
             if (!newUser) {
                 throw new Error('Failed to create new user');
             }
@@ -180,6 +86,7 @@ class UserController {
             throw error;
         }
     }
+
 
     async checkAndUpdateTasksForUser(userId: string) {
         const userTasksSql = `
@@ -198,66 +105,63 @@ class UserController {
         }
     }
 
-
     async addCoinsAndDeductEnergy(userId: string, coins: number): Promise<User | undefined> {
-        const user = await this.getUserFromId(userId);
-        if (user) {
-            if (coins > 10000) {
-                console.error("addCoinsAndReduceEnergy The user can t get that many coins")
+        const user = await this.getUserFromId(userId, null);
+        if (user && user.boosts) {
+            const maxCoinsChanged = user.boosts[1].level * 10 * 20 * 3
+            if (coins > maxCoinsChanged) {
                 throw new Error('The user can t get that many coins');
             }
+
+            if (user.currentEnergy < coins) {
+                throw new Error('The user can t get that many coins of energy limits');
+            }
+
             const newCoins = user.coins + coins;
             const newEnergy = Math.max(0, user.currentEnergy - coins);
 
-            const updateUserSql = `UPDATE users SET coins = ?, currentEnergy = ? WHERE userId = ?`;
+            const updateUserSql = `UPDATE users
+                                   SET coins         = ?,
+                                       currentEnergy = ?
+                                   WHERE userId = ?`;
             await this.db.run(updateUserSql, [newCoins, newEnergy, userId]);
-            const returneduser = await this.getUserFromId(userId)
+            const returneduser = await this.getUserFromId(userId, null)
 
-            console.error("addCoinsAndReduceEnergy returneduser - ", returneduser)
+
+            if (user.referral && returneduser != undefined) {
+                const referralSql = `SELECT *
+                                     FROM users
+                                     WHERE codeToInvite = ?`;
+                const inviter = await this.db.get(referralSql, [user.referral]);
+                if (inviter) {
+                    const updatedCoins = returneduser.coins ;
+                    const originalThousands = Math.floor(user.coins / 1000);
+                    const updatedThousands = Math.floor(updatedCoins / 1000);
+                    if (updatedThousands > originalThousands) {
+                        const additionalCoins = (updatedThousands - originalThousands) * 100;
+                        const updateInviterCoinsSql = `UPDATE users
+                                                       SET coins = coins + ?
+                                                       WHERE userId = ?`;
+                        await this.db.run(updateInviterCoinsSql, [additionalCoins, inviter.userId]);
+
+                        const updateInvitationSql = `
+                            INSERT INTO user_invitations (inviter_id, invitee_id, coinsReferral)
+                            VALUES (?, ?, ?) ON CONFLICT(inviter_id, invitee_id) DO
+                            UPDATE SET
+                                coinsReferral = user_invitations.coinsReferral + excluded.coinsReferral
+                        `;
+                        await this.db.run(updateInvitationSql, [inviter.userId, userId, additionalCoins]);
+                    }
+                }
+            }
             return returneduser;
         }
     }
 
-    async addCoinsAndReduceEnergy(userId: string, coins: number): Promise<User | undefined> {
-        const user = await this.getUserFromId(userId);
-
-        // const  addedCoins = user?.coins
-
-        if (!user) {
-            console.error("addCoinsAndReduceEnergy User not found")
-            throw new Error('User not found');
-        }
-
-        if (coins > 10000) {
-            console.error("addCoinsAndReduceEnergy The user can t get that many coins")
-            throw new Error('The user can t get that many coins');
-        }
-
-
-        if (user.currentEnergy < coins) {
-            console.error("addCoinsAndReduceEnergy Not enough energy")
-            throw new Error('Not enough energy');
-        }
-
-        user.coins += coins;
-        user.currentEnergy -= coins;
-
-        await this.db.run(
-            `UPDATE users
-             SET coins = ?,
-                 currentEnergy = ?
-             WHERE userId = ?`,
-            [user.coins, user.currentEnergy, userId]
-        );
-        const returneduser = await this.getUserFromId(userId)
-
-        console.error("addCoinsAndReduceEnergy returneduser - ", returneduser)
-        return returneduser;
-    }
-
-
-    async getUserFromId(userId: string): Promise<User | undefined> {
-        const userSql = `SELECT * FROM users WHERE userId = ?`;
+    async getUserFromId(userId: string, imageAvatar: string | null): Promise<User | undefined> {
+        const userSql = `SELECT *
+                         FROM users
+                         WHERE userId = ?`;
         const user = await this.db.get(userSql, [userId]);
 
         if (user) {
@@ -273,20 +177,36 @@ class UserController {
             user.dataUpdate = currentTime.toISOString();
 
             // Update the user's currentEnergy and dataUpdate in the database
-            const updateEnergySql = `UPDATE users SET currentEnergy = ?, dataUpdate = ? WHERE userId = ?`;
+            const updateEnergySql = `UPDATE users
+                                     SET currentEnergy = ?,
+                                         dataUpdate    = ?
+                                     WHERE userId = ?`;
             await this.db.run(updateEnergySql, [user.currentEnergy, user.dataUpdate, userId]);
 
+            // Check and update imageAvatar if necessary
+            console.error("imageAvatar - ", imageAvatar)
+            if (imageAvatar !== null && imageAvatar !== user.imageAvatar) {
+                console.error("imageAvatar - continue")
+                user.imageAvatar = imageAvatar;
+                const updateAvatarSql = `UPDATE users
+                                         SET imageAvatar = ?
+                                         WHERE userId = ?`;
+                await this.db.run(updateAvatarSql, [imageAvatar, userId]);
+            }
+
             // Fetch user's completed tasks
-            const tasksSql = `SELECT taskId FROM completedTasks WHERE userId = ?`;
+            const tasksSql = `SELECT taskId
+                              FROM completedTasks
+                              WHERE userId = ?`;
             const tasks = await this.db.all(tasksSql, [userId]);
 
             // Fetch user's boosts
             const boostsSql = `
-        SELECT b.boostName, ub.level, b.price
-        FROM userBoosts ub
-        JOIN boosts b ON ub.boostName = b.boostName
-        WHERE ub.userId = ?
-        `;
+                SELECT b.boostName, ub.level, b.price
+                FROM userBoosts ub
+                         JOIN boosts b ON ub.boostName = b.boostName
+                WHERE ub.userId = ?
+            `;
             const boosts = await this.db.all(boostsSql, [userId]);
             user.boosts = boosts.map(boost => ({
                 boostName: boost.boostName,
@@ -306,33 +226,33 @@ class UserController {
 
             // Fetch user's invited users
             const inviteesSql = `
-        SELECT u.userId, u.userName, ui.coinsReferral
-        FROM users u
-        JOIN user_invitations ui ON u.userId = ui.invitee_id
-        WHERE ui.inviter_id = ?
-        `;
+                SELECT u.userId, u.userName, ui.coinsReferral
+                FROM users u
+                         JOIN user_invitations ui ON u.userId = ui.invitee_id
+                WHERE ui.inviter_id = ?
+            `;
             const invitees = await this.db.all(inviteesSql, [userId]);
 
             // Fetch and update user tasks
             const userTasksSql = `
-        SELECT t.id AS taskId,
-               t.text,
-               t.coins,
-               t.checkIcon,
-               t.taskType,
-               t.type,
-               ut.completed,
-               ut.lastCompletedDate,
-               ut.actionBtnTx,
-               ut.txDescription,
-               ut.dataSendCheck,
-               ut.isLoading,
-               ut.etTx,
-               ut.etaps
-        FROM tasks t
-        JOIN userTasks ut ON t.id = ut.taskId
-        WHERE ut.userId = ?
-        `;
+                SELECT t.id AS taskId,
+                       t.text,
+                       t.coins,
+                       t.checkIcon,
+                       t.taskType,
+                       t.type,
+                       ut.completed,
+                       ut.lastCompletedDate,
+                       ut.actionBtnTx,
+                       ut.txDescription,
+                       ut.dataSendCheck,
+                       ut.isLoading,
+                       ut.etTx,
+                       ut.etaps
+                FROM tasks t
+                         JOIN userTasks ut ON t.id = ut.taskId
+                WHERE ut.userId = ?
+            `;
             let userTasks = await this.db.all(userTasksSql, [userId]);
 
             const today = new Date().toISOString().split('T')[0];
@@ -340,10 +260,10 @@ class UserController {
                 if (task.type === 'DailyTask' && task.lastCompletedDate !== today) {
                     await this.db.run(
                         `UPDATE userTasks
-                     SET completed = 0,
-                         lastCompletedDate = ?
-                     WHERE userId = ?
-                       AND taskId = ?`,
+                         SET completed         = 0,
+                             lastCompletedDate = ?
+                         WHERE userId = ?
+                           AND taskId = ?`,
                         [today, userId, task.taskId]
                     );
                     task.completed = false;
@@ -396,10 +316,12 @@ class UserController {
             const energyBoost = user.boosts.find((boost: UserBoost) => boost.boostName === 'energy limit');
             const newMaxEnergy = energyBoost ? 1000 + (energyBoost.level - 1) * 500 : 1000;
 
-            // Если maxEnergy в базе данных равно 0, обновляем его
-            if (user.maxEnergy === 0) {
+            if (user.maxEnergy == 0 || user.maxEnergy == null) {
+                console.error("maxEnergy == 0");
                 user.maxEnergy = newMaxEnergy;
-                const updateMaxEnergySql = `UPDATE users SET maxEnergy = ? WHERE userId = ?`;
+                const updateMaxEnergySql = `UPDATE users
+                                            SET maxEnergy = ?
+                                            WHERE userId = ?`;
                 await this.db.run(updateMaxEnergySql, [newMaxEnergy, userId]);
             } else {
                 user.maxEnergy = Math.max(user.maxEnergy, newMaxEnergy); // Обновляем maxEnergy только если новое значение больше
@@ -416,8 +338,6 @@ class UserController {
 
         return undefined;
     }
-
-
 
     async getUserById(userId: string): Promise<User | undefined> {
         const getUserSql = 'SELECT * FROM users WHERE userId = ?';
@@ -492,7 +412,7 @@ class UserController {
                 }
             }
 
-            const returneduser = await this.getUserFromId(userId)
+            const returneduser = await this.getUserFromId(userId, null)
 
             return returneduser;
         } catch (error) {
@@ -527,7 +447,7 @@ class UserController {
         const newUserSql = `
             INSERT INTO users (userId, userName, coins, codeToInvite, address, referral, createAt, dataUpdate,
                                currentEnergy, maxEnergy)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1000, 1000)
         `;
         await this.db.run(newUserSql, [newUserId, newUserName, 0, codeToInvite, '', inviteCode, createAt, dataUpdate]);
 
@@ -554,17 +474,27 @@ class UserController {
         }
 
         // Инициализация задач для нового пользователя
-        const tasksSql = `SELECT id
+        const tasksSql = `SELECT id,
+                                 text,
+                                 coins,
+                                 checkIcon,
+                                 taskType,
+                                 type,
+                                 actionBtnTx,
+                                 txDescription
                           FROM tasks`;
         const allTasks = await this.db.all(tasksSql);
 
-        const insertUserTaskSql = `INSERT INTO userTasks (userId, taskId)
-                                   VALUES (?, ?)`;
+        const insertUserTaskSql = `
+            INSERT INTO userTasks (userId, taskId, text, coins, checkIcon, taskType, type, completed, lastCompletedDate,
+                                   actionBtnTx, txDescription)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 0, null, ?, ?)
+        `;
         for (const task of allTasks) {
-            await this.db.run(insertUserTaskSql, [newUserId, task.id]);
+            await this.db.run(insertUserTaskSql, [newUserId, task.id, task.text, task.coins, task.checkIcon, task.taskType, task.type, task.actionBtnTx, task.txDescription]);
         }
 
-        const user = await this.getUserFromId(newUserId);
+        const user = await this.getUserFromId(newUserId, null);
 
         if (!user) {
             throw new Error('Failed to retrieve the new user');
@@ -582,6 +512,7 @@ class UserController {
 
     async updateBoost(userId: string, boostName: string): Promise<{ user: User; boostEndTime?: string } | undefined> {
         try {
+
             const boostSql = `SELECT *
                               FROM boosts
                               WHERE boostName = ?`;
@@ -596,6 +527,7 @@ class UserController {
                 throw new Error('User not found');
             }
 
+
             const userBoostSql = `SELECT *
                                   FROM userBoosts
                                   WHERE userId = ?
@@ -605,12 +537,20 @@ class UserController {
             let boostEndTime: string | undefined;
 
             if (!userBoost) {
+
+                if(userBoost.level == 50) {
+                    throw new Error('Max level limits');
+                }
                 const insertUserBoostSql = `INSERT INTO userBoosts (userId, boostName, level, turboBoostUpgradeCount,
                                                                     lastTurboBoostUpgrade)
                                             VALUES (?, ?, 1, 0, NULL)`;
                 await this.db.run(insertUserBoostSql, [userId, boostName]);
                 userBoost = {boostName, level: 1, turboBoostUpgradeCount: 0, lastTurboBoostUpgrade: null};
             } else {
+                if ((boost.price * userBoost.level) > user.coins) {
+                    throw new Error('Your don have enough money');
+                }
+
                 if (boostName === 'turbo') {
                     const now = new Date();
                     const today = now.toISOString().split('T')[0];
@@ -649,7 +589,7 @@ class UserController {
                 }
             }
 
-            const newCoins = user.coins - boost.price * Math.pow(2, userBoost.level - 1);
+            const newCoins = user.coins - (boost.price * userBoost.level)
             if (newCoins < 0) {
                 throw new Error('Not enough coins');
             }
@@ -666,7 +606,7 @@ class UserController {
             await this.updateUser(userId, {coins: newCoins});
 
             // Возвращаем обновленного пользователя с его бустами и время окончания буста
-            const updatedUser = await this.getUserFromId(userId);
+            const updatedUser = await this.getUserFromId(userId, null);
             if (!updatedUser) {
                 throw new Error('Failed to fetch updated user');
             }
@@ -703,7 +643,7 @@ class UserController {
         // Вычисляем количество монет для добавления
         const coinsToAdd = Math.floor(timePassed / (intervalInSeconds * 1000));
 
-        console.error('Запуск интервалас: монеты апдейт - coinsToAdd', coinsToAdd);
+        console.error('Запуск tap bot: монеты апдейт - coinsToAdd', coinsToAdd);
 
         // Обновляем монеты и время последнего обновления
         const newCoinsSql = `
@@ -1064,21 +1004,21 @@ class UserController {
                 // Проверка, прошло ли больше 24 суток с момента сохраненной даты
                 const savedDate = new Date(dataSendCheck);
                 const nextMonth = new Date(savedDate);
-                nextMonth.setDate(savedDate.getDate() + 24);
-
+                nextMonth.setDate(savedDate.getDate() + 1);
                 if (currentDate > nextMonth) {
                     // Завершение задачи и перевод на этап 4
                     await this.updateUserTask(user.userId, selectedTask.taskId, {
-                        completed: true,
                         etaps: 4,
                     });
+
+                    await this.updateTaskCompletion(user.userId, selectedTask.taskId, true)
+
                     return "Task completion status updated successfully"
                 } else {
                     throw new Error('Less than 24 days have passed since the last update.');
                 }
             }
         } else {
-
         }
     }
 
@@ -1170,7 +1110,7 @@ class UserController {
                 WHERE ub.userId = ?
             `;
             const boosts = await this.db.all(boostsSql, [userId]);
-            console.log(`Boosts fetched for user ${userId}:`, boosts);
+
             user.boosts = boosts.map(boost => ({
                 boostName: boost.boostName,
                 level: boost.level,

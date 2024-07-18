@@ -27,8 +27,10 @@ function userRouter(userController: UserController) {
             const initData = res.locals.initData as InitDataParsed;
 
             const id = initData.user?.id
+            const image = initData.user?.photoUrl
+            console.error("image -  -", image)
             if (id != undefined) {
-                const user = await userController.getUserFromId(id.toString());
+                const user = await userController.getUserFromId(id.toString(), image ? image : null);
                 if (!user) {
                     res.status(404).json({message: 'User not found'});
                 } else {

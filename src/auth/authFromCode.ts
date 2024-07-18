@@ -32,7 +32,6 @@ export const authFromCode: RequestHandler = (req, res, next) => {
     switch (authType) {
         case 'tma':
             try {
-                console.error("authData -", authData)
                 // Validate init data.
                 if (authData !== "KEY_HGJFKDIFJDFJDBNVJ") return next(new Error('Unauthorized'));
                 return next();

@@ -1,5 +1,4 @@
 import axios from "axios";
-import TelegramBot from 'node-telegram-bot-api';
 
 export interface ResultCheckNftItem {
     state: boolean;
@@ -53,7 +52,8 @@ export const sendToCheckUserHaveNftFromCollections = async (
     collectionAddress: string
 ): Promise<ResultCheckNftItem> => {
     try {
-        const url = `https://testnet.tonapi.io/v2/accounts/${userAddress}/nfts`;
+
+        const url = `https://tonapi.io/v2/accounts/${userAddress}/nfts`;
         const params = {
             collection: collectionAddress,
             limit: 1000,
@@ -76,16 +76,30 @@ export const sendToCheckUserHaveNftFromCollections = async (
 };
 
 
-
-const bot = new TelegramBot("7248210755:AAH9Gq1oKsUD1HWTpg4avAGCGUt_M5cqrvs", { polling: true });
-
-
 export async function isUserSubscribed(userId: number, channelId: string): Promise<boolean> {
     try {
-        const chatMember = await bot.getChatMember(channelId, userId);
-        const status = chatMember.status;
-        // Статус может быть 'member', 'administrator', 'creator', если пользователь подписан
-        return ['member', 'administrator', 'creator'].includes(status);
+        try {
+            const botToken = "6769650957:AAFycFIyHn60g-Ulek--8HJVClzbCNorT2g"
+            const response = await axios.get(`https://api.telegram.org/bot${botToken}/getChatMember`, {
+                params: {
+                    chat_id: channelId,
+                    user_id: userId
+                }
+            });
+
+            const { status } = response.data.result;
+
+            if (status === 'member' || status === 'administrator' || status === 'creator') {
+                return true;
+            } else {
+                return false;
+            }
+        } catch (error) {
+            console.error('Error checking subscription:', error);
+            return false;
+        }
+        console.error('Error checking user subscription:');
+        return false
     } catch (error) {
         console.error('Error checking user subscription:', error);
         return false;

@@ -21,10 +21,10 @@ connectDatabase().then(db => {
     const userController = new UserController(db);
     const leagueController = new LeagueController(db);
     const adminsController = new AdminsController(db);
-    app.use('/users', userRouter(userController));
-    app.use('/leagues', leagueRouter(leagueController));
-    app.use('/task', taskRouter(userController));
-    app.use('/adm', adminsRouter(adminsController));
+    app.use('/api/users', userRouter(userController));
+    app.use('/api/leagues', leagueRouter(leagueController));
+    app.use('/api/task', taskRouter(userController));
+    app.use('/api/adm', adminsRouter(adminsController));
 
     app.listen(port, () => {
         console.log(`Server is running on port ${port}`);
