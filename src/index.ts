@@ -25,7 +25,7 @@ connectDatabase().then(db => {
     app.use('/api/leagues', leagueRouter(leagueController));
     app.use('/api/task', taskRouter(userController));
     app.use('/api/adm', adminsRouter(adminsController));
-
+    
     app.listen(port, () => {
         console.log(`Server is running on port ${port}`);
     });
