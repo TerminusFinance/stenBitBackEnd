@@ -32,35 +32,3 @@ connectDatabase().then(db => {
 }).catch(error => {
     console.error('Failed to connect to the database', error);
 });
-
-
-// const app = express();
-// const port = 3000;
-//
-// (async () => {
-//     try {
-//         const db = await connectDatabase(); // Подключаемся к базе данных
-//
-//         app.use(express.json());
-//         app.use('/tasks', taskRouter(db)); // Передаем объект базы данных в маршрутизатор задач
-//
-//         app.listen(port, () => {
-//             console.log(`Server is running on port ${port}`);
-//         });
-//     } catch (error) {
-//         console.error('Error starting the server:', error);
-//     }
-// })();
-
-
-
-// const app = express();
-// const port = 3000;
-
-// app.use(express.json());
-//
-// app.use('/api', userRoutes);
-//
-// app.listen(port, () => {
-//     console.log(`Server is running at http://localhost:${port}`);
-// });

@@ -87,7 +87,6 @@ class UserController {
         }
     }
 
-
     async checkAndUpdateTasksForUser(userId: string) {
         const userTasksSql = `
             SELECT t.id AS taskId,
@@ -211,7 +210,7 @@ class UserController {
             user.boosts = boosts.map(boost => ({
                 boostName: boost.boostName,
                 level: boost.level,
-                price: boost.price * Math.pow(2, boost.level - 1) // Цена увеличивается в 2 раза за каждый уровень
+                price: boost.price * Math.pow(2, boost.level - 1)
             }));
 
             // Handle tapBoost logic
@@ -323,8 +322,6 @@ class UserController {
                                             SET maxEnergy = ?
                                             WHERE userId = ?`;
                 await this.db.run(updateMaxEnergySql, [newMaxEnergy, userId]);
-            } else {
-                user.maxEnergy = Math.max(user.maxEnergy, newMaxEnergy); // Обновляем maxEnergy только если новое значение больше
             }
 
             return {
@@ -366,12 +363,6 @@ class UserController {
             const originalUser = await this.getUserById(userId);
             if (!originalUser) {
                 throw new Error('User not found');
-            }
-
-            if (updatedData.coins != undefined) {
-                if (updatedData.coins - originalUser.coins > 10000) {
-                    throw new Error('The user can t get that many coins');
-                }
             }
 
             const originalCoins = originalUser.coins || 0;
@@ -520,11 +511,13 @@ class UserController {
 
             if (!boost) {
                 throw new Error('Invalid boost name');
+                return;
             }
 
             const user = await this.getUserById(userId);
             if (!user) {
                 throw new Error('User not found');
+                return;
             }
 
 
@@ -535,11 +528,12 @@ class UserController {
             let userBoost = await this.db.get(userBoostSql, [userId, boostName]);
 
             let boostEndTime: string | undefined;
-
+            const priceSelectedBoost = boost.price * Math.pow(2, userBoost.level - 1)
             if (!userBoost) {
 
                 if(userBoost.level == 50) {
                     throw new Error('Max level limits');
+                    return;
                 }
                 const insertUserBoostSql = `INSERT INTO userBoosts (userId, boostName, level, turboBoostUpgradeCount,
                                                                     lastTurboBoostUpgrade)
@@ -547,8 +541,9 @@ class UserController {
                 await this.db.run(insertUserBoostSql, [userId, boostName]);
                 userBoost = {boostName, level: 1, turboBoostUpgradeCount: 0, lastTurboBoostUpgrade: null};
             } else {
-                if ((boost.price * userBoost.level) > user.coins) {
+                if (priceSelectedBoost > user.coins) {
                     throw new Error('Your don have enough money');
+                    return ;
                 }
 
                 if (boostName === 'turbo') {
@@ -580,38 +575,39 @@ class UserController {
                         userBoost.level -= 1;
                     }, boostDuration);
                 } else {
+
+                    const newCoins = user.coins - priceSelectedBoost
+                    if (newCoins < 0) {
+                        throw new Error('Not enough coins');
+                        return;
+                    }
+                    console.log("price for boots- ", priceSelectedBoost)
+                    console.log("sendToUdapte User - this coins - ", newCoins)
+                    await this.updateUser(userId, {coins: newCoins});
                     const updateUserBoostSql = `UPDATE userBoosts
                                                 SET level = level + 1
                                                 WHERE userId = ?
                                                   AND boostName = ?`;
                     await this.db.run(updateUserBoostSql, [userId, boostName]);
                     userBoost.level += 1;
+                    if (boostName === 'energy limit') {
+                        let newMaxEnergy = user.maxEnergy;
+                        if (user.maxEnergy === 0) {
+                            newMaxEnergy = 1000; // Начальное значение, если maxEnergy = 0
+                        }
+                        newMaxEnergy += 500; // Добавляем фиксированное количество энергии за каждый уровень
+                        await this.updateUser(userId, {maxEnergy: newMaxEnergy});
+                    }
+
+                    const updatedUser = await this.getUserFromId(userId, null);
+                    if (!updatedUser) {
+                        throw new Error('Failed to fetch updated user');
+                    }
+
+                    return {user: updatedUser, boostEndTime};
                 }
             }
 
-            const newCoins = user.coins - (boost.price * userBoost.level)
-            if (newCoins < 0) {
-                throw new Error('Not enough coins');
-            }
-
-            if (boostName === 'energy limit') {
-                let newMaxEnergy = user.maxEnergy;
-                if (user.maxEnergy === 0) {
-                    newMaxEnergy = 1000; // Начальное значение, если maxEnergy = 0
-                }
-                newMaxEnergy += 500; // Добавляем фиксированное количество энергии за каждый уровень
-                await this.updateUser(userId, {maxEnergy: newMaxEnergy});
-            }
-
-            await this.updateUser(userId, {coins: newCoins});
-
-            // Возвращаем обновленного пользователя с его бустами и время окончания буста
-            const updatedUser = await this.getUserFromId(userId, null);
-            if (!updatedUser) {
-                throw new Error('Failed to fetch updated user');
-            }
-
-            return {user: updatedUser, boostEndTime};
         } catch (error) {
             console.error('Ошибка при обновлении буста:', error);
             throw new Error(`Failed to update boost: ${error}`);
