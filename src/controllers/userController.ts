@@ -10,6 +10,7 @@ import {
     UserBoost,
     UserTask
 } from "../types/Types";
+import {runInNewContext} from "node:vm";
 
 
 class UserController {
@@ -133,7 +134,7 @@ class UserController {
                                      WHERE codeToInvite = ?`;
                 const inviter = await this.db.get(referralSql, [user.referral]);
                 if (inviter) {
-                    const updatedCoins = returneduser.coins ;
+                    const updatedCoins = returneduser.coins;
                     const originalThousands = Math.floor(user.coins / 1000);
                     const updatedThousands = Math.floor(updatedCoins / 1000);
                     if (updatedThousands > originalThousands) {
@@ -322,6 +323,15 @@ class UserController {
                                             SET maxEnergy = ?
                                             WHERE userId = ?`;
                 await this.db.run(updateMaxEnergySql, [newMaxEnergy, userId]);
+            } else {
+                const newEnergy = newMaxEnergy
+                if(user.maxEnergy != newEnergy) {
+                    const updateMaxEnergySql = `UPDATE users
+                                            SET maxEnergy = ?
+                                            WHERE userId = ?`;
+                    await this.db.run(updateMaxEnergySql, [newEnergy, userId]);
+                }
+                user.maxEnergy = newEnergy;
             }
 
             return {
@@ -531,7 +541,7 @@ class UserController {
             const priceSelectedBoost = boost.price * Math.pow(2, userBoost.level - 1)
             if (!userBoost) {
 
-                if(userBoost.level == 50) {
+                if (userBoost.level == 50) {
                     throw new Error('Max level limits');
                     return;
                 }
@@ -543,7 +553,7 @@ class UserController {
             } else {
                 if (priceSelectedBoost > user.coins) {
                     throw new Error('Your don have enough money');
-                    return ;
+                    return;
                 }
 
                 if (boostName === 'turbo') {

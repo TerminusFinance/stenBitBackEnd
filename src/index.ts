@@ -10,6 +10,9 @@ import taskRouter from "./routes/taskRouter";
 import cors from 'cors';
 import adminsRouter from "./routes/adminsRouter";
 import AdminsController from "./controllers/adminsController";
+import {upload} from "./controllers/imageControler";
+import path from "path";
+import fs from "fs";
 
 const app = express();
 const port = 3000;
@@ -25,7 +28,25 @@ connectDatabase().then(db => {
     app.use('/api/leagues', leagueRouter(leagueController));
     app.use('/api/task', taskRouter(userController));
     app.use('/api/adm', adminsRouter(adminsController));
-    
+
+    // app.post('/api/upload', upload.single('image'), (req, res) => {
+    //     if (!req.file) {
+    //         return res.status(400).json({ message: 'No file uploaded' });
+    //     }
+    //     res.status(200).json({ filename: req.file.filename, path: `/api/img/${req.file.filename}` });
+    // });
+
+    app.get('/api/img/:filename', (req, res) => {
+        const filename = req.params.filename;
+        const filePath = path.join(__dirname, '../uploads', filename);
+
+        if (fs.existsSync(filePath)) {
+            res.sendFile(filePath);
+        } else {
+            res.status(404).json({ message: 'File not found' });
+        }
+    });
+
     app.listen(port, () => {
         console.log(`Server is running on port ${port}`);
     });

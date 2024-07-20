@@ -1,11 +1,9 @@
 import express from "express";
-import TaskController from "../controllers/userController";
 import AdminsController from "../controllers/adminsController";
 import {authFromCode} from "../auth/authFromCode";
-
+import {upload} from "../controllers/imageControler";
 
 const router = express.Router();
-
 
 function adminsRouter(adminsController: AdminsController) {
 
@@ -38,6 +36,19 @@ function adminsRouter(adminsController: AdminsController) {
             const {updatedData} = req.body;
             const result = await adminsController.updateUser(userId, updatedData);
             res.status(200).json(result);
+        } catch (error) {
+            console.error("error in update users",error)
+            res.status(400).json({ message: error });
+        }
+    });
+
+
+    router.post('/uploadImage', authFromCode ,upload.single('image'), async (req, res) => {
+        try {
+            if (!req.file) {
+                return res.status(400).json({ message: 'No file uploaded' });
+            }
+            return res.status(200).json({ filename: req.file.filename, path: `/api/img/${req.file.filename}` });
         } catch (error) {
             console.error("error in update users",error)
             res.status(400).json({ message: error });
