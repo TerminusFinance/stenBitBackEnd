@@ -61,17 +61,17 @@ export const sendToCheckUserHaveNftFromCollections = async (
             indirect_ownership: false
         };
 
-        const response = await axios.get<ApiResponse>(url, { params });
+        const response = await axios.get<ApiResponse>(url, {params});
 
         if (response.data.error) {
             console.error('API Error:', response.data.error);
-            return { state: false };
+            return {state: false};
         }
 
-        return { state: response.data.nft_items.length > 0 };
+        return {state: response.data.nft_items.length > 0};
     } catch (error) {
         console.error('Error fetching NFTs:', error);
-        return { state: false };
+        return {state: false};
     }
 };
 
@@ -87,7 +87,7 @@ export async function isUserSubscribed(userId: number, channelId: string): Promi
                 }
             });
 
-            const { status } = response.data.result;
+            const {status} = response.data.result;
 
             if (status === 'member' || status === 'administrator' || status === 'creator') {
                 return true;
@@ -104,4 +104,24 @@ export async function isUserSubscribed(userId: number, channelId: string): Promi
         console.error('Error checking user subscription:', error);
         return false;
     }
+}
+
+
+interface LabeledPrice {
+    label: string;
+    amount: number;
+}
+
+export async function sendPayment(chat_id: string, title: string, description: string, payload: string, currency: string, prices: Array<LabeledPrice>) {
+    const botToken = ""
+    const response = await axios.get(`https://api.telegram.org/bot${botToken}/sendInvoice`, {
+        params: {
+            chat_id: chat_id,
+            title: title,
+            description: description,
+            payload: payload,
+            currency: currency,
+            prices: prices
+        }
+    });
 }

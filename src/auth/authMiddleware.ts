@@ -21,7 +21,7 @@ function getInitData(res: Response): InitDataParsed | undefined {
 }
 
 // Your secret bot token.
-const token = '6769650957:AAFycFIyHn60g-Ulek--8HJVClzbCNorT2g';
+const token = '7248210755:AAH9Gq1oKsUD1HWTpg4avAGCGUt_M5cqrvs';
 
 /**
  * Middleware which authorizes the external client.

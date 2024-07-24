@@ -15,7 +15,7 @@ import path from "path";
 import fs from "fs";
 
 const app = express();
-const port = 3000;
+const port = 3700;
 
 app.use(express.json());
 app.use(cors());
@@ -24,10 +24,10 @@ connectDatabase().then(db => {
     const userController = new UserController(db);
     const leagueController = new LeagueController(db);
     const adminsController = new AdminsController(db);
-    app.use('/api/users', userRouter(userController));
-    app.use('/api/leagues', leagueRouter(leagueController));
-    app.use('/api/task', taskRouter(userController));
-    app.use('/api/adm', adminsRouter(adminsController));
+    app.use('/test/api/users', userRouter(userController));
+    app.use('/test/api/leagues', leagueRouter(leagueController));
+    app.use('/test/api/task', taskRouter(userController));
+    app.use('/test/api/adm', adminsRouter(adminsController));
 
     // app.post('/api/upload', upload.single('image'), (req, res) => {
     //     if (!req.file) {
