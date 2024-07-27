@@ -10,9 +10,10 @@ import taskRouter from "./routes/taskRouter";
 import cors from 'cors';
 import adminsRouter from "./routes/adminsRouter";
 import AdminsController from "./controllers/adminsController";
-import {upload} from "./controllers/imageControler";
 import path from "path";
 import fs from "fs";
+import PremiumController from "./controllers/premiumController";
+import premiumRouter from "./routes/premiumRouter";
 
 const app = express();
 const port = 3700;
@@ -24,17 +25,12 @@ connectDatabase().then(db => {
     const userController = new UserController(db);
     const leagueController = new LeagueController(db);
     const adminsController = new AdminsController(db);
+    const premiumController = new PremiumController(db);
     app.use('/test/api/users', userRouter(userController));
     app.use('/test/api/leagues', leagueRouter(leagueController));
     app.use('/test/api/task', taskRouter(userController));
     app.use('/test/api/adm', adminsRouter(adminsController));
-
-    // app.post('/api/upload', upload.single('image'), (req, res) => {
-    //     if (!req.file) {
-    //         return res.status(400).json({ message: 'No file uploaded' });
-    //     }
-    //     res.status(200).json({ filename: req.file.filename, path: `/api/img/${req.file.filename}` });
-    // });
+    app.use('/test/api/prem', premiumRouter(premiumController))
 
     app.get('/api/img/:filename', (req, res) => {
         const filename = req.params.filename;

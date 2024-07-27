@@ -1,4 +1,5 @@
 import axios from "axios";
+import {botToken} from "../auth/tokens";
 
 export interface ResultCheckNftItem {
     state: boolean;
@@ -79,7 +80,6 @@ export const sendToCheckUserHaveNftFromCollections = async (
 export async function isUserSubscribed(userId: number, channelId: string): Promise<boolean> {
     try {
         try {
-            const botToken = "6769650957:AAFycFIyHn60g-Ulek--8HJVClzbCNorT2g"
             const response = await axios.get(`https://api.telegram.org/bot${botToken}/getChatMember`, {
                 params: {
                     chat_id: channelId,
@@ -106,22 +106,3 @@ export async function isUserSubscribed(userId: number, channelId: string): Promi
     }
 }
 
-
-interface LabeledPrice {
-    label: string;
-    amount: number;
-}
-
-export async function sendPayment(chat_id: string, title: string, description: string, payload: string, currency: string, prices: Array<LabeledPrice>) {
-    const botToken = ""
-    const response = await axios.get(`https://api.telegram.org/bot${botToken}/sendInvoice`, {
-        params: {
-            chat_id: chat_id,
-            title: title,
-            description: description,
-            payload: payload,
-            currency: currency,
-            prices: prices
-        }
-    });
-}
