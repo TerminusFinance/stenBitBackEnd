@@ -33,7 +33,7 @@ connectDatabase().then(db => {
     app.use('/test/api/task', taskRouter(userController));
     app.use('/test/api/adm', adminsRouter(adminsController));
     app.use('/test/api/prem', premiumRouter(premiumController))
-
+    
     app.get('/api/img/:filename', (req, res) => {
         const filename = req.params.filename;
         const filePath = path.join(__dirname, '../uploads', filename);

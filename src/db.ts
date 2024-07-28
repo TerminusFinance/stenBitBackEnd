@@ -131,7 +131,7 @@ async function migrateDatabase(db: Database): Promise<void> {
     const existingUserColumns = await db.all(existingUserColumnsSql);
 
     // if (!existingUserColumns.some((col) => col.name === 'imageAvatar')) {
-    //     await db.exec(`-- ALTER TABLE users ADD COLUMN imageAvatar TEXT DEFAULT NULL`);
+    //     await db.exec(`ALTER TABLE users ADD COLUMN imageAvatar TEXT DEFAULT NULL`);
     // }
 
     const existingUserTaskColumnsSql = `PRAGMA table_info(userTasks)`;
