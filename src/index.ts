@@ -15,11 +15,13 @@ import fs from "fs";
 import PremiumController from "./controllers/premiumController";
 import premiumRouter from "./routes/premiumRouter";
 
+
 const app = express();
 const port = 3700;
 
 app.use(express.json());
 app.use(cors());
+
 
 connectDatabase().then(db => {
     const userController = new UserController(db);

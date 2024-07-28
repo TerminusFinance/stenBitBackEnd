@@ -1,1 +1,0 @@
-export const botToken = "7248210755:AAFy2vW3Lc1JVq2bskctvuHoqPyhTkFDfgg"

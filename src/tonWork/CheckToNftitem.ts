@@ -1,5 +1,5 @@
 import axios from "axios";
-import {botToken} from "../auth/tokens";
+import {botToken} from "../../config";
 
 export interface ResultCheckNftItem {
     state: boolean;

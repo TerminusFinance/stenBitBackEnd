@@ -1,6 +1,6 @@
 import {Database} from "sqlite";
-import {botToken} from "../auth/tokens";
 import axios from "axios";
+import {botToken} from "../../config";
 
 /**
  *  types
@@ -36,9 +36,15 @@ class PremiumController {
     }
 
     async buyPremium(chat_id: string, selectedSubscriptionOptions: SubscriptionOptions) {
+        let resultAmount = 0
+        if(selectedSubscriptionOptions.price ==5) {
+            resultAmount = 1
+        } else  {
+            resultAmount = selectedSubscriptionOptions.price
+        }
         const currentLabeledPrice: LabeledPrice[] = [{
             label: `Premium to ${selectedSubscriptionOptions.name}`,
-            amount: selectedSubscriptionOptions.price
+            amount: resultAmount
         }];
 
         const title = `Premium to ${selectedSubscriptionOptions.name}`;
@@ -54,6 +60,9 @@ class PremiumController {
 
     async sendPayment(chat_id: string, title: string, description: string, payload: string, currency: string, prices: LabeledPrice[]) {
         const url = `https://api.telegram.org/bot${botToken}/createInvoiceLink`;
+
+
+
 
         const data = {
             chat_id: chat_id,
@@ -115,12 +124,18 @@ class PremiumController {
     }
 
 
-    async getPremiumUsers(userId: string): Promise<PremiumItem> {
+    async getPremiumUsers(userId: string): Promise<PremiumItem | null> {
         const premiumSql = `SELECT amountSpent, endDateOfWork
-                            FROM premium
-                            WHERE userId = ?`;
+                        FROM premium
+                        WHERE userId = ?`;
         const premium = await this.db.get(premiumSql, [userId]);
-        return premium
+
+        if (!premium) {
+            // Если запись не найдена, возвращаем null или другое значение по умолчанию
+            return null;
+        }
+
+        return premium;
     }
 
     async getAllPremiumUsers(): Promise<any[]> {

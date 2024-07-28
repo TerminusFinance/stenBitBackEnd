@@ -1,6 +1,6 @@
 import { validate, parse, type InitDataParsed } from '@telegram-apps/init-data-node';
 import { RequestHandler, Response } from 'express';
-import {botToken} from "./tokens";
+import {botToken} from "../../config";
 
 /**
  * Sets init data in the specified Response object.
