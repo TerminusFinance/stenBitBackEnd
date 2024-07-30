@@ -17,7 +17,7 @@ import premiumRouter from "./routes/premiumRouter";
 
 
 const app = express();
-const port = 3700;
+const port = 3000;
 
 app.use(express.json());
 app.use(cors());
@@ -28,11 +28,11 @@ connectDatabase().then(db => {
     const leagueController = new LeagueController(db);
     const adminsController = new AdminsController(db);
     const premiumController = new PremiumController(db);
-    app.use('/test/api/users', userRouter(userController));
-    app.use('/test/api/leagues', leagueRouter(leagueController));
-    app.use('/test/api/task', taskRouter(userController));
-    app.use('/test/api/adm', adminsRouter(adminsController));
-    app.use('/test/api/prem', premiumRouter(premiumController))
+    app.use('/api/users', userRouter(userController));
+    app.use('/api/leagues', leagueRouter(leagueController));
+    app.use('/api/task', taskRouter(userController));
+    app.use('/api/adm', adminsRouter(adminsController));
+    app.use('/api/prem', premiumRouter(premiumController))
     
     app.get('/api/img/:filename', (req, res) => {
         const filename = req.params.filename;
