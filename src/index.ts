@@ -24,10 +24,15 @@ connectDatabase().then(db => {
     const userController = new UserController(db);
     const leagueController = new LeagueController(db);
     const adminsController = new AdminsController(db);
+<<<<<<< Updated upstream
+=======
+    const premiumController = new PremiumController(db);
+>>>>>>> Stashed changes
     app.use('/api/users', userRouter(userController));
     app.use('/api/leagues', leagueRouter(leagueController));
     app.use('/api/task', taskRouter(userController));
     app.use('/api/adm', adminsRouter(adminsController));
+<<<<<<< Updated upstream
 
     // app.post('/api/upload', upload.single('image'), (req, res) => {
     //     if (!req.file) {
@@ -36,6 +41,10 @@ connectDatabase().then(db => {
     //     res.status(200).json({ filename: req.file.filename, path: `/api/img/${req.file.filename}` });
     // });
 
+=======
+    app.use('/api/prem', premiumRouter(premiumController))
+    
+>>>>>>> Stashed changes
     app.get('/api/img/:filename', (req, res) => {
         const filename = req.params.filename;
         const filePath = path.join(__dirname, '../uploads', filename);

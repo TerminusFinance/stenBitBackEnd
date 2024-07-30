@@ -152,4 +152,17 @@ async function migrateDatabase(db: Database): Promise<void> {
     if (!existingUserBoostColumns.some((col) => col.name === 'lastTurboBoostUpgrade')) {
         await db.exec(`ALTER TABLE userBoosts ADD COLUMN lastTurboBoostUpgrade TEXT DEFAULT NULL`);
     }
+<<<<<<< Updated upstream
+=======
+
+    const existingPremiumColumnsSql = `PRAGMA table_info(premium)`;
+    const existingPremiumColumns = await db.all(existingPremiumColumnsSql);
+
+    if (!existingPremiumColumns.some((col) => col.name === 'amountSpent')) {
+        await db.exec(`ALTER TABLE premium ADD COLUMN amountSpent INTEGER DEFAULT 0`);
+    }
+    if (!existingPremiumColumns.some((col) => col.name === 'endDateOfWork')) {
+        await db.exec(`ALTER TABLE premium ADD COLUMN endDateOfWork TEXT DEFAULT NULL`);
+    }
+>>>>>>> Stashed changes
 }

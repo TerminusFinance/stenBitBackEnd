@@ -1,7 +1,7 @@
 import {Database} from 'sqlite';
 import {isUserSubscribed, sendToCheckUserHaveNftFromCollections} from "../tonWork/CheckToNftitem";
 import {
-    Boost,
+    Boost, isCheckFriendsTask,
     IsCheckNftTask, IsOpenUrl, IsStockReg,
     IsSubscribeToTg,
     TaskCardProps,
@@ -850,6 +850,9 @@ class UserController {
             if (user.tasks) {
                 const userTask = user.tasks.find(task => task.taskId === taskId);
                 if (userTask) {
+
+                    console.error("task - ", userTask.taskType)
+                    console.error("isCheckFriendsTask(userTask.taskType) - ", isCheckFriendsTask(userTask.taskType))
                     if (IsCheckNftTask(userTask.taskType)) {
                         const resultCheck = await this.checkNftItem(user, userTask);
                         if (resultCheck === "Task completion status updated successfully") {
@@ -890,6 +893,20 @@ class UserController {
                         } catch (error) {
                             return error;
                         }
+                    } else if (isCheckFriendsTask(userTask.taskType)) {
+                        try {
+                            console.error("isCheckFriendsTask voshol")
+                            const resultCheck = await this.checkFriendsAction(user, userTask);
+                            console.error("isCheckFriendsTask resultCheck -", resultCheck)
+                            if (resultCheck === "Task completion status updated successfully") {
+                                const newUserState = await this.getUserFromIdSimply(userId);
+                                return newUserState;
+                            } else {
+                                return resultCheck;
+                            }
+                        } catch (e) {
+                            return e;
+                        }
                     }
                 } else {
                     return "User task not found";
@@ -918,6 +935,25 @@ class UserController {
             }
         } else {
             return "User is not subscribed to the channel";
+        }
+    }
+
+
+    async checkFriendsAction (user: User, selectedTask: UserTask) {
+        if(isCheckFriendsTask(selectedTask.taskType)) {
+            if(user.listUserInvited != undefined) {
+                console.error("checkFriendsAction ser.listUserInvited-", user.listUserInvited)
+                if(user.listUserInvited.length >= selectedTask.taskType.numberOfFriends) {
+                    const resultSendTorequest = await this.updateTaskCompletion(user.userId, selectedTask.taskId, true)
+                    resultSendTorequest
+                    return "Task completion status updated successfully";
+                } else  {
+                    return "An error occurred while have invited friends";
+                }
+            } else  {
+                console.error("checkFriendsAction ser.listUserInvited-", user.listUserInvited)
+                return "An error occurred while have invited friends";
+            }
         }
     }
 
