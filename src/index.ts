@@ -10,41 +10,30 @@ import taskRouter from "./routes/taskRouter";
 import cors from 'cors';
 import adminsRouter from "./routes/adminsRouter";
 import AdminsController from "./controllers/adminsController";
-import {upload} from "./controllers/imageControler";
 import path from "path";
 import fs from "fs";
+import PremiumController from "./controllers/premiumController";
+import premiumRouter from "./routes/premiumRouter";
+
 
 const app = express();
-const port = 3000;
+const port = 3700;
 
 app.use(express.json());
 app.use(cors());
+
 
 connectDatabase().then(db => {
     const userController = new UserController(db);
     const leagueController = new LeagueController(db);
     const adminsController = new AdminsController(db);
-<<<<<<< Updated upstream
-=======
     const premiumController = new PremiumController(db);
->>>>>>> Stashed changes
-    app.use('/api/users', userRouter(userController));
-    app.use('/api/leagues', leagueRouter(leagueController));
-    app.use('/api/task', taskRouter(userController));
-    app.use('/api/adm', adminsRouter(adminsController));
-<<<<<<< Updated upstream
-
-    // app.post('/api/upload', upload.single('image'), (req, res) => {
-    //     if (!req.file) {
-    //         return res.status(400).json({ message: 'No file uploaded' });
-    //     }
-    //     res.status(200).json({ filename: req.file.filename, path: `/api/img/${req.file.filename}` });
-    // });
-
-=======
-    app.use('/api/prem', premiumRouter(premiumController))
+    app.use('/test/api/users', userRouter(userController));
+    app.use('/test/api/leagues', leagueRouter(leagueController));
+    app.use('/test/api/task', taskRouter(userController));
+    app.use('/test/api/adm', adminsRouter(adminsController));
+    app.use('/test/api/prem', premiumRouter(premiumController))
     
->>>>>>> Stashed changes
     app.get('/api/img/:filename', (req, res) => {
         const filename = req.params.filename;
         const filePath = path.join(__dirname, '../uploads', filename);

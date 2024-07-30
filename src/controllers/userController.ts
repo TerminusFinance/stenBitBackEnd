@@ -11,6 +11,7 @@ import {
     UserTask
 } from "../types/Types";
 import {runInNewContext} from "node:vm";
+import PremiumController from "./premiumController";
 
 
 class UserController {
@@ -105,36 +106,102 @@ class UserController {
         }
     }
 
-    async addCoinsAndDeductEnergy(userId: string, coins: number): Promise<User | undefined> {
-        const user = await this.getUserFromId(userId, null);
-        if (user && user.boosts) {
-            const maxCoinsChanged = user.boosts[1].level * 10 * 20 * 3
+    async addCoinsAndDeductEnergy(userId: string, coins: number): Promise<{ newEnergy: number, coins: number }> {
+        // Получение данных пользователя и его бустов
+        const userSql = `
+            SELECT u.*,
+                   b.boostName,
+                   ub.level,
+                   b.price,
+                   p.endDateOfWork,
+                   ub.turboBoostUpgradeCount,
+                   ub.lastTurboBoostUpgrade
+            FROM users u
+                     LEFT JOIN userBoosts ub ON u.userId = ub.userId
+                     LEFT JOIN boosts b ON ub.boostName = b.boostName
+                     LEFT JOIN premium p ON u.userId = p.userId
+            WHERE u.userId = ?
+        `;
+        const user = await this.db.get(userSql, [userId]);
+
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        // Проверка наличия премиум-подписки
+        let energyRecoveryRate = 1;
+        if (user.endDateOfWork) {
+            const endDateOfWork = new Date(user.endDateOfWork);
+            const currentDate = new Date();
+            if (endDateOfWork >= currentDate) {
+                energyRecoveryRate = 2; // Увеличиваем скорость восстановления энергии для премиум-пользователей
+            }
+        }
+
+        // Calculate energy recovery
+        const currentTime = new Date();
+        const lastUpdate = user.dataUpdate ? new Date(user.dataUpdate) : new Date();
+        const elapsedSeconds = Math.floor((currentTime.getTime() - lastUpdate.getTime()) / 1000);
+        const recoveredEnergy = elapsedSeconds * energyRecoveryRate;
+        user.currentEnergy = Math.min(user.maxEnergy, user.currentEnergy + recoveredEnergy);
+
+        // Update the user's currentEnergy and dataUpdate in the database
+        const updateEnergySql = `UPDATE users
+                                 SET currentEnergy = ?,
+                                     dataUpdate    = ?
+                                 WHERE userId = ?`;
+        await this.db.run(updateEnergySql, [user.currentEnergy, currentTime.toISOString(), userId]);
+
+        // Логика обработки бустов
+        const boosts = await this.db.all(`
+            SELECT b.boostName, ub.level, b.price, ub.turboBoostUpgradeCount, ub.lastTurboBoostUpgrade
+            FROM userBoosts ub
+                     JOIN boosts b ON ub.boostName = b.boostName
+            WHERE ub.userId = ?
+        `, [userId]);
+
+        user.boosts = boosts.map((boost: UserBoost) => ({
+            boostName: boost.boostName,
+            level: boost.level,
+            price: boost.price * Math.pow(2, boost.level - 1),
+            turboBoostUpgradeCount: boost.turboBoostUpgradeCount,
+            lastTurboBoostUpgrade: boost.lastTurboBoostUpgrade
+        }));
+
+        // Проверка на активный турбобуст
+        const turboBoost = user.boosts.find((boost: UserBoost) => boost.boostName === 'turbo');
+        const isTurboBoostActive = turboBoost && turboBoost.lastTurboBoostUpgrade &&
+            new Date(turboBoost.lastTurboBoostUpgrade).getTime() + 60000 > currentTime.getTime();
+
+        if (user.boosts) {
+            const maxCoinsChanged = user.currentEnergy;
             if (coins > maxCoinsChanged) {
-                throw new Error('The user can t get that many coins');
+                throw new Error('The user cannot get that many coins');
             }
 
-            if (user.currentEnergy < coins) {
-                throw new Error('The user can t get that many coins of energy limits');
+            // Если турбобуст не активен, проверяем и списываем энергию
+            if (!isTurboBoostActive) {
+                if (user.currentEnergy < coins) {
+                    throw new Error('The user cannot get that many coins due to energy limits');
+                }
+
+                user.currentEnergy = Math.max(0, user.currentEnergy - coins);
             }
 
             const newCoins = user.coins + coins;
-            const newEnergy = Math.max(0, user.currentEnergy - coins);
-
             const updateUserSql = `UPDATE users
                                    SET coins         = ?,
                                        currentEnergy = ?
                                    WHERE userId = ?`;
-            await this.db.run(updateUserSql, [newCoins, newEnergy, userId]);
-            const returneduser = await this.getUserFromId(userId, null)
+            await this.db.run(updateUserSql, [newCoins, user.currentEnergy, userId]);
 
-
-            if (user.referral && returneduser != undefined) {
+            if (user.referral) {
                 const referralSql = `SELECT *
                                      FROM users
                                      WHERE codeToInvite = ?`;
                 const inviter = await this.db.get(referralSql, [user.referral]);
                 if (inviter) {
-                    const updatedCoins = returneduser.coins;
+                    const updatedCoins = newCoins;
                     const originalThousands = Math.floor(user.coins / 1000);
                     const updatedThousands = Math.floor(updatedCoins / 1000);
                     if (updatedThousands > originalThousands) {
@@ -148,45 +215,28 @@ class UserController {
                             INSERT INTO user_invitations (inviter_id, invitee_id, coinsReferral)
                             VALUES (?, ?, ?) ON CONFLICT(inviter_id, invitee_id) DO
                             UPDATE SET
-                                coinsReferral = user_invitations.coinsReferral + excluded.coinsReferral
+                                coinsReferral = coinsReferral + excluded.coinsReferral
                         `;
                         await this.db.run(updateInvitationSql, [inviter.userId, userId, additionalCoins]);
                     }
                 }
             }
-            return returneduser;
+            return {newEnergy: user.currentEnergy, coins: newCoins};
         }
+
+        throw new Error('User boosts not found');
     }
+
 
     async getUserFromId(userId: string, imageAvatar: string | null): Promise<User | undefined> {
         const userSql = `SELECT *
                          FROM users
                          WHERE userId = ?`;
         const user = await this.db.get(userSql, [userId]);
-
+        const currentTime = new Date();
         if (user) {
-            // Calculate energy recovery
-            const currentTime = new Date();
-            const lastUpdate = user.dataUpdate ? new Date(user.dataUpdate) : new Date();
-            const elapsedSeconds = Math.floor((currentTime.getTime() - lastUpdate.getTime()) / 1000);
-
-            // Energy recovery: 1 point per second
-            const recoveredEnergy = elapsedSeconds;
-
-            user.currentEnergy = Math.min(user.maxEnergy, user.currentEnergy + recoveredEnergy);
-            user.dataUpdate = currentTime.toISOString();
-
-            // Update the user's currentEnergy and dataUpdate in the database
-            const updateEnergySql = `UPDATE users
-                                     SET currentEnergy = ?,
-                                         dataUpdate    = ?
-                                     WHERE userId = ?`;
-            await this.db.run(updateEnergySql, [user.currentEnergy, user.dataUpdate, userId]);
-
             // Check and update imageAvatar if necessary
-            console.error("imageAvatar - ", imageAvatar)
             if (imageAvatar !== null && imageAvatar !== user.imageAvatar) {
-                console.error("imageAvatar - continue")
                 user.imageAvatar = imageAvatar;
                 const updateAvatarSql = `UPDATE users
                                          SET imageAvatar = ?
@@ -210,8 +260,8 @@ class UserController {
             const boosts = await this.db.all(boostsSql, [userId]);
             user.boosts = boosts.map(boost => ({
                 boostName: boost.boostName,
-                level: boost.level,
-                price: boost.price * Math.pow(2, boost.level - 1)
+                level: boost.boostName === "turbo" ? 1 : boost.level,
+                price: boost.boostName === "turbo" ? boost.price : boost.price * Math.pow(2, boost.level - 1)
             }));
 
             // Handle tapBoost logic
@@ -220,7 +270,8 @@ class UserController {
                 if (!user.lastTapBootUpdate) {
                     user.lastTapBootUpdate = currentTime.toISOString();
                 } else {
-                    await this.updateCoinsWithTapBoot(userId, tapBoost.level, user.lastTapBootUpdate);
+                    const newCoins = await this.updateCoinsWithTapBoot(userId, tapBoost.level, user.lastTapBootUpdate);
+                    user.coins = newCoins;
                 }
             }
 
@@ -317,34 +368,67 @@ class UserController {
             const newMaxEnergy = energyBoost ? 1000 + (energyBoost.level - 1) * 500 : 1000;
 
             if (user.maxEnergy == 0 || user.maxEnergy == null) {
-                console.error("maxEnergy == 0");
                 user.maxEnergy = newMaxEnergy;
                 const updateMaxEnergySql = `UPDATE users
                                             SET maxEnergy = ?
                                             WHERE userId = ?`;
                 await this.db.run(updateMaxEnergySql, [newMaxEnergy, userId]);
             } else {
-                const newEnergy = newMaxEnergy
-                if(user.maxEnergy != newEnergy) {
+                const newEnergy = newMaxEnergy;
+                if (user.maxEnergy != newEnergy) {
                     const updateMaxEnergySql = `UPDATE users
-                                            SET maxEnergy = ?
-                                            WHERE userId = ?`;
+                                                SET maxEnergy = ?
+                                                WHERE userId = ?`;
                     await this.db.run(updateMaxEnergySql, [newEnergy, userId]);
                 }
                 user.maxEnergy = newEnergy;
             }
+
+            // Fetch user's premium subscription details
+            // const premiumSql = `-- SELECT amountSpent, endDateOfWork FROM premium WHERE userId = ?`;
+            // const premium = await this.db.get(premiumSql, [userId]);
+            const premController = new PremiumController(this.db)
+            const premUser = await premController.getPremiumUsers(userId)
+
+
+            // Проверка наличия премиум-подписки
+            let energyRecoveryRate = 1;
+            if (premUser?.endDateOfWork != undefined) {
+                const endDateOfWork = new Date(premUser.endDateOfWork);
+                const currentDate = new Date();
+                if (endDateOfWork >= currentDate) {
+                    energyRecoveryRate = 2; // Увеличиваем скорость восстановления энергии для премиум-пользователей
+                }
+            }
+
+            // Calculate energy recovery
+            const lastUpdate = user.dataUpdate ? new Date(user.dataUpdate) : new Date();
+            const elapsedSeconds = Math.floor((currentTime.getTime() - lastUpdate.getTime()) / 1000);
+            const recoveredEnergy = elapsedSeconds * energyRecoveryRate;
+            user.currentEnergy = Math.min(user.maxEnergy, user.currentEnergy + recoveredEnergy);
+            // Update the user's currentEnergy and dataUpdate in the database
+            const updateEnergySql = `UPDATE users
+                                     SET currentEnergy = ?,
+                                         dataUpdate    = ?
+                                     WHERE userId = ?`;
+            await this.db.run(updateEnergySql, [user.currentEnergy, user.dataUpdate, userId]);
 
             return {
                 ...user,
                 completedTasks: tasks.map(task => task.taskId),
                 boosts: user.boosts,
                 listUserInvited: invitees,
-                tasks: formattedTasks
+                tasks: formattedTasks,
+                premium: premUser ? {
+                    amountSpent: premUser.amountSpent,
+                    endDateOfWork: premUser.endDateOfWork
+                } : null
             };
         }
 
         return undefined;
     }
+
 
     async getUserById(userId: string): Promise<User | undefined> {
         const getUserSql = 'SELECT * FROM users WHERE userId = ?';
@@ -538,7 +622,7 @@ class UserController {
             let userBoost = await this.db.get(userBoostSql, [userId, boostName]);
 
             let boostEndTime: string | undefined;
-            const priceSelectedBoost = boost.price * Math.pow(2, userBoost.level - 1)
+            const priceSelectedBoost = boostName === "turbo" ? boost.price : boost.price * Math.pow(2, userBoost.level - 1)
             if (!userBoost) {
 
                 if (userBoost.level == 50) {
@@ -561,29 +645,70 @@ class UserController {
                     const today = now.toISOString().split('T')[0];
                     const lastUpgradeDate = userBoost.lastTurboBoostUpgrade ? new Date(userBoost.lastTurboBoostUpgrade).toISOString().split('T')[0] : null;
 
-                    if (lastUpgradeDate === today && userBoost.turboBoostUpgradeCount >= 2) {
+                    // Проверяем количество активаций за сегодняшний день
+
+                    const premController = new PremiumController(this.db)
+                    const premUser = await premController.getPremiumUsers(userId)
+
+
+                    // Проверка наличия премиум-подписки
+                    let energyRecoveryRate = 2;
+
+                    if (premUser?.endDateOfWork != null) {
+                        const endDateOfWork = new Date(premUser.endDateOfWork);
+                        const currentDate = new Date();
+                        if (endDateOfWork >= currentDate) {
+                            energyRecoveryRate = 3;
+                        }
+                    }
+
+
+                    if (lastUpgradeDate === today && userBoost.turboBoostUpgradeCount >= energyRecoveryRate) {
                         throw new Error('Turbo boost can only be upgraded twice per day');
                     }
 
+                    // Если дата последней активации не сегодняшняя, сбрасываем счетчик активаций
                     if (lastUpgradeDate !== today) {
-                        userBoost.turboBoostUpgradeCount = 0; // Reset the count for a new day
+                        userBoost.turboBoostUpgradeCount = 0; // Сбрасываем счетчик для нового дня
                     }
 
+                    // Увеличиваем счетчик активаций и обновляем дату последней активации
                     userBoost.turboBoostUpgradeCount += 1;
                     userBoost.lastTurboBoostUpgrade = now.toISOString();
 
-                    const boostDuration = 60000; // 60000 milliseconds = 1 minute
+                    // Рассчитываем время окончания буста (1 минута)
+                    const boostDuration = 60000; // 60000 миллисекунд = 1 минута
                     const endTime = new Date(now.getTime() + boostDuration);
-                    boostEndTime = endTime.toISOString();
+                    const boostEndTime = endTime.toISOString();
+
+                    // Сохраняем время окончания буста в lastActivation и обновляем activationsToday
+                    userBoost.lastActivation = boostEndTime;
+                    userBoost.activationsToday = userBoost.turboBoostUpgradeCount;
+
+                    // Обновляем данные в базе данных
+                    await this.db.run(`UPDATE userBoosts
+                                       SET turboBoostUpgradeCount = ?,
+                                           lastTurboBoostUpgrade  = ?
+                                       WHERE userId = ?
+                                         AND boostName = ?`, [userBoost.turboBoostUpgradeCount, userBoost.lastTurboBoostUpgrade, userId, boostName]);
 
                     // Активируем буст на одну минуту
                     setTimeout(async () => {
                         await this.db.run(`UPDATE userBoosts
-                                           SET level = level - 1
+                                           SET level = 1
                                            WHERE userId = ?
                                              AND boostName = ?`, [userId, boostName]);
                         userBoost.level -= 1;
                     }, boostDuration);
+
+                    // Получаем обновленные данные пользователя
+                    const updatedUser = await this.getUserFromId(userId, null);
+                    if (!updatedUser) {
+                        throw new Error('Failed to fetch updated user');
+                    }
+
+                    return {user: updatedUser, boostEndTime};
+
                 } else {
 
                     const newCoins = user.coins - priceSelectedBoost
@@ -627,7 +752,7 @@ class UserController {
 
     // tap boot
 
-    async updateCoinsWithTapBoot(userId: string, tapBootLevel: number, lastTapBootUpdate: string) {
+    async updateCoinsWithTapBoot(userId: string, tapBootLevel: number, lastTapBootUpdate: string):  Promise<number> {
         console.log("Запуск tapBoot:");
 
         const intervalInSeconds = 2; // Интервал в секундах для добавления монет пользователя
@@ -636,7 +761,7 @@ class UserController {
         const currentTime = new Date().getTime();
 
         // Определяем время работы механизма на основе уровня tapBoot
-        const durationInMinutes = 5 + (tapBootLevel - 1) * 2; // Максимальная длительность tapBoot в минутах
+        const durationInMinutes = 5 * tapBootLevel;  // Максимальная длительность tapBoot в минутах
         const durationInMilliseconds = durationInMinutes * 60 * 1000; // Максимальная длительность tapBoot в миллисекундах
 
         let timePassed = currentTime - lastUpdateTime;
@@ -659,6 +784,14 @@ class UserController {
             WHERE userId = ?
         `;
         await this.db.run(newCoinsSql, [coinsToAdd, new Date().toISOString(), userId]);
+        // Получаем обновленное количество монет
+        const getCoinsSql = `
+        SELECT coins
+        FROM users
+        WHERE userId = ?
+    `;
+        const result = await this.db.get(getCoinsSql, [userId]);
+        return result.coins;
     }
 
 
@@ -1156,7 +1289,7 @@ class UserController {
             user.boosts = boosts.map(boost => ({
                 boostName: boost.boostName,
                 level: boost.level,
-                price: boost.price * Math.pow(2, boost.level - 1) // Цена увеличивается в 2 раза за каждый уровень
+                price: boost.price * Math.pow(2, boost.level - 1)
             }));
 
             const tapBoost = user.boosts.find((boost: UserBoost) => boost.boostName === 'tapBoot');
@@ -1222,12 +1355,12 @@ class UserController {
                     checkIcon: task.checkIcon,
                     taskType: JSON.parse(task.taskType),
                     type: task.type,
-                    completed: task.completed === 1, // Convert 1 to true and 0 to false
+                    completed: task.completed === 1,
                     lastCompletedDate: task.lastCompletedDate,
                     actionBtnTx: task.actionBtnTx,
                     txDescription: task.txDescription,
                     dataSendCheck: task.dataSendCheck,
-                    isLoading: task.isLoading === 1, // Convert 1 to true and 0 to false
+                    isLoading: task.isLoading === 1,
                     etTx: task.etTx,
                     etaps: task.etaps
                 };
@@ -1245,12 +1378,12 @@ class UserController {
                     checkIcon: task.checkIcon,
                     taskType: JSON.parse(task.taskType),
                     type: task.type,
-                    completed: task.completed === 1, // Convert 1 to true and 0 to false
+                    completed: task.completed === 1,
                     lastCompletedDate: task.lastCompletedDate,
                     actionBtnTx: task.actionBtnTx,
                     txDescription: task.txDescription,
                     dataSendCheck: task.dataSendCheck,
-                    isLoading: task.isLoading === 1, // Convert 1 to true and 0 to false
+                    isLoading: task.isLoading === 1,
                     etTx: task.etTx,
                     etaps: task.etaps
                 };

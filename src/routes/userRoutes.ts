@@ -102,7 +102,6 @@ function userRouter(userController: UserController) {
         }
     });
 
-
     return router;
 }
 

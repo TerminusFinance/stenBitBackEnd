@@ -1,5 +1,6 @@
 import { validate, parse, type InitDataParsed } from '@telegram-apps/init-data-node';
 import { RequestHandler, Response } from 'express';
+import {botToken} from "../../config";
 
 /**
  * Sets init data in the specified Response object.
@@ -21,7 +22,7 @@ function getInitData(res: Response): InitDataParsed | undefined {
 }
 
 // Your secret bot token.
-const token = '6769650957:AAFycFIyHn60g-Ulek--8HJVClzbCNorT2g';
+
 
 /**
  * Middleware which authorizes the external client.
@@ -40,7 +41,7 @@ export const authMiddleware: RequestHandler = (req, res, next) => {
             try {
                 console.error("authData -", authData)
                 // Validate init data.
-                validate(authData, token, {
+                validate(authData, botToken, {
                     // We consider init data sign valid for 1 hour from their creation moment.
                     expiresIn: 3600,
                 });

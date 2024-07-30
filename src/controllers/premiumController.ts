@@ -23,10 +23,12 @@ export interface PremiumItem {
 class PremiumController {
     constructor(private db: Database) {
     }
+
+
     async getListSubscriptionOptions(): Promise<SubscriptionOptions[]> {
         const prices: SubscriptionOptions[] = [
-            {name: '7 days', price: 7},
-            {name: '14 days', price: 12},
+            {name: '7 days', price: 5},
+            {name: '14 days', price: 14},
             {name: '1 month', price: 25}
         ];
 
@@ -35,15 +37,10 @@ class PremiumController {
 
     async buyPremium(chat_id: string, selectedSubscriptionOptions: SubscriptionOptions) {
         let resultAmount = 0
-        const course = 0.021
-        if(selectedSubscriptionOptions.price == 7) {
-            resultAmount = Math.round(selectedSubscriptionOptions.price / course);
-        } else if (selectedSubscriptionOptions.price == 12){
-            resultAmount = Math.round(selectedSubscriptionOptions.price / course);
-        } else if (selectedSubscriptionOptions.price == 25) {
-            resultAmount = Math.round(selectedSubscriptionOptions.price / course);
-        } else {
-            throw new Error("This service does not exist")
+        if(selectedSubscriptionOptions.price ==5) {
+            resultAmount = 1
+        } else  {
+            resultAmount = selectedSubscriptionOptions.price
         }
         const currentLabeledPrice: LabeledPrice[] = [{
             label: `Premium to ${selectedSubscriptionOptions.name}`,
@@ -86,17 +83,9 @@ class PremiumController {
     }
 
     async subscriptionProcessing(providerPaymentChargeId: string, totalAmount: number) {
-        const dayPrem = totalAmount * 0.021
-        if(totalAmount == 1190) {
-            const id = providerPaymentChargeId.split('_')[0];
-            await this.updateSubscription(id, 31, totalAmount)
-        } else if(totalAmount == 571) {
-            const id = providerPaymentChargeId.split('_')[0];
-            await this.updateSubscription(id, 14, totalAmount)
-        } else {
-            const id = providerPaymentChargeId.split('_')[0];
-            await this.updateSubscription(id, 1, totalAmount)
-        }
+        const dayPrem = totalAmount
+        const id = providerPaymentChargeId.split('_')[0];
+        await this.updateSubscription(id, dayPrem, totalAmount)
         return true
     }
 

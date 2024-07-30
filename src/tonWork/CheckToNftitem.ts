@@ -1,4 +1,5 @@
 import axios from "axios";
+import {botToken} from "../../config";
 
 export interface ResultCheckNftItem {
     state: boolean;
@@ -61,17 +62,17 @@ export const sendToCheckUserHaveNftFromCollections = async (
             indirect_ownership: false
         };
 
-        const response = await axios.get<ApiResponse>(url, { params });
+        const response = await axios.get<ApiResponse>(url, {params});
 
         if (response.data.error) {
             console.error('API Error:', response.data.error);
-            return { state: false };
+            return {state: false};
         }
 
-        return { state: response.data.nft_items.length > 0 };
+        return {state: response.data.nft_items.length > 0};
     } catch (error) {
         console.error('Error fetching NFTs:', error);
-        return { state: false };
+        return {state: false};
     }
 };
 
@@ -79,7 +80,6 @@ export const sendToCheckUserHaveNftFromCollections = async (
 export async function isUserSubscribed(userId: number, channelId: string): Promise<boolean> {
     try {
         try {
-            const botToken = "6769650957:AAFycFIyHn60g-Ulek--8HJVClzbCNorT2g"
             const response = await axios.get(`https://api.telegram.org/bot${botToken}/getChatMember`, {
                 params: {
                     chat_id: channelId,
@@ -87,7 +87,7 @@ export async function isUserSubscribed(userId: number, channelId: string): Promi
                 }
             });
 
-            const { status } = response.data.result;
+            const {status} = response.data.result;
 
             if (status === 'member' || status === 'administrator' || status === 'creator') {
                 return true;
@@ -105,3 +105,4 @@ export async function isUserSubscribed(userId: number, channelId: string): Promi
         return false;
     }
 }
+

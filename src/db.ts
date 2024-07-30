@@ -106,6 +106,16 @@ export async function connectDatabase(): Promise<Database> {
             ('silver', 1500, 5001, 25000),
             ('gold', 2000, 25001, 100000),
             ('platinum', 15000, 100001, 1000000);
+
+
+        CREATE TABLE IF NOT EXISTS premium (
+                                               userId TEXT,
+                                               amountSpent INTEGER DEFAULT 0,
+                                               endDateOfWork TEXT DEFAULT NULL,
+                                               FOREIGN KEY (userId) REFERENCES users(userId),
+            PRIMARY KEY (userId)
+            );
+
     `);
 
     // Run migrations
@@ -121,7 +131,7 @@ async function migrateDatabase(db: Database): Promise<void> {
     const existingUserColumns = await db.all(existingUserColumnsSql);
 
     // if (!existingUserColumns.some((col) => col.name === 'imageAvatar')) {
-    //     await db.exec(`-- ALTER TABLE users ADD COLUMN imageAvatar TEXT DEFAULT NULL`);
+    //     await db.exec(`ALTER TABLE users ADD COLUMN imageAvatar TEXT DEFAULT NULL`);
     // }
 
     const existingUserTaskColumnsSql = `PRAGMA table_info(userTasks)`;
@@ -152,8 +162,6 @@ async function migrateDatabase(db: Database): Promise<void> {
     if (!existingUserBoostColumns.some((col) => col.name === 'lastTurboBoostUpgrade')) {
         await db.exec(`ALTER TABLE userBoosts ADD COLUMN lastTurboBoostUpgrade TEXT DEFAULT NULL`);
     }
-<<<<<<< Updated upstream
-=======
 
     const existingPremiumColumnsSql = `PRAGMA table_info(premium)`;
     const existingPremiumColumns = await db.all(existingPremiumColumnsSql);
@@ -164,5 +172,8 @@ async function migrateDatabase(db: Database): Promise<void> {
     if (!existingPremiumColumns.some((col) => col.name === 'endDateOfWork')) {
         await db.exec(`ALTER TABLE premium ADD COLUMN endDateOfWork TEXT DEFAULT NULL`);
     }
->>>>>>> Stashed changes
+
+
+
+
 }

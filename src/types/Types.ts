@@ -24,6 +24,8 @@ export interface UserBoost {
     boostName: string;
     level: number;
     price: number;
+    turboBoostUpgradeCount?: number;
+    lastTurboBoostUpgrade?: string;
 }
 
 export interface InvitedUser {
