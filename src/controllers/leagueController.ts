@@ -1,4 +1,4 @@
-import {Database} from 'sqlite';
+import mysql, {Connection} from 'mysql2/promise';
 import {User} from "../types/Types";
 
 export interface LeagueLevel {
@@ -20,23 +20,19 @@ interface UserLeague {
 }
 
 class LeagueController {
-    constructor(private db: Database) {
+    constructor(private db: Connection) {
     }
 
     async getAllLeagueLevels(): Promise<LeagueLevel[]> {
-        const leagueLevelsSql = `SELECT *
-                                 FROM leagueLevels`;
-        const leagueLevels = await this.db.all(leagueLevelsSql);
-        return leagueLevels;
+        const leagueLevelsSql = `SELECT * FROM leagueLevels`;
+        const [rows] = await this.db.execute(leagueLevelsSql);
+        return rows as LeagueLevel[];
     }
 
-    async getUsersByLeagueLevels(levels: Level[]) {
-        const allUsersSql = `
-            SELECT userName, coins, imageAvatar
-            FROM users
-        `;
-        const allUsers: UserLeague[] = await this.db.all(allUsersSql);
-
+    async getUsersByLeagueLevels(levels: Level[]): Promise<UserLeague[][]> {
+        const allUsersSql = `SELECT userName, coins, imageAvatar FROM users`;
+        const [rows] = await this.db.execute<mysql.RowDataPacket[]>(allUsersSql);
+        const allUsers =  rows as UserLeague[];
         const usersByLevels: UserLeague[][] = levels.map(() => []);
 
         allUsers.forEach(user => {

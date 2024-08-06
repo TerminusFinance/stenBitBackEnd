@@ -27,7 +27,6 @@ function premiumRouter(premiumController: PremiumController) {
             const {selectedSubscriptionOptions} = req.body;
             const initData = res.locals.initData as InitDataParsed;
             const id = initData.user?.id
-            console.log(`idUserName - @${id}`)
             if (id != undefined) {
                 const resultPrem = await premiumController.buyPremium(`${id}`, selectedSubscriptionOptions);
                 res.status(200).json(resultPrem);

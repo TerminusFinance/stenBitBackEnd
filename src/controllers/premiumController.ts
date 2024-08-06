@@ -1,6 +1,7 @@
-import {Database} from "sqlite";
-import axios from "axios";
-import {botToken} from "../../config";
+import { Connection } from 'mysql2/promise';
+import axios from 'axios';
+import { botToken } from '../../config';
+import ClanController from './clanController';
 
 /**
  *  types
@@ -21,48 +22,47 @@ export interface PremiumItem {
 }
 
 class PremiumController {
-    constructor(private db: Database) {
-    }
-
+    constructor(private db: Connection) {}
 
     async getListSubscriptionOptions(): Promise<SubscriptionOptions[]> {
         const prices: SubscriptionOptions[] = [
-            {name: '7 days', price: 5},
-            {name: '14 days', price: 14},
-            {name: '1 month', price: 25}
+            { name: '7 days', price: 7 },
+            { name: '14 days', price: 12 },
+            { name: '1 month', price: 25 }
         ];
 
         return prices;
     }
 
     async buyPremium(chat_id: string, selectedSubscriptionOptions: SubscriptionOptions) {
-        let resultAmount = 0
-        if(selectedSubscriptionOptions.price ==5) {
-            resultAmount = 1
-        } else  {
-            resultAmount = selectedSubscriptionOptions.price
+        const course = 0.021;
+        let resultAmount = Math.round(selectedSubscriptionOptions.price / course);
+
+        if (![7, 12, 25, 1000, 5000, 10000, 25000, 50000].includes(selectedSubscriptionOptions.price)) {
+            throw new Error('This service does not exist');
         }
+
+        if(selectedSubscriptionOptions.price == 7) {
+            resultAmount = 1
+        }
+
         const currentLabeledPrice: LabeledPrice[] = [{
             label: `Premium to ${selectedSubscriptionOptions.name}`,
             amount: resultAmount
         }];
 
         const title = `Premium to ${selectedSubscriptionOptions.name}`;
-        const description = "The premium to terminus app";
+        const description = 'The premium to terminus app';
         const currency = 'XTR';
-        const payload = "Payload info";
+        const payload = 'Payload info';
 
-        // Отправляем запрос на оплату
         const resultPayment = await this.sendPayment(chat_id, title, description, payload, currency, currentLabeledPrice);
-        console.log("resultPayment - ", resultPayment);
-        return resultPayment
+        console.log('resultPayment - ', resultPayment);
+        return resultPayment;
     }
 
     async sendPayment(chat_id: string, title: string, description: string, payload: string, currency: string, prices: LabeledPrice[]) {
         const url = `https://api.telegram.org/bot${botToken}/createInvoiceLink`;
-
-
-
 
         const data = {
             chat_id: chat_id,
@@ -78,24 +78,34 @@ class PremiumController {
             return response.data;
         } catch (error) {
             console.error('Error:', error);
-            throw error; // Можно выбросить ошибку для обработки в вызывающем коде
+            throw error;
         }
     }
 
     async subscriptionProcessing(providerPaymentChargeId: string, totalAmount: number) {
-        const dayPrem = totalAmount
         const id = providerPaymentChargeId.split('_')[0];
-        await this.updateSubscription(id, dayPrem, totalAmount)
-        return true
+
+        const clanController = new ClanController(this.db);
+
+        if (totalAmount === 1190) {
+            await this.updateSubscription(id, 31, totalAmount);
+        } else if (totalAmount === 571) {
+            await this.updateSubscription(id, 14, totalAmount);
+        } else if ([1000, 5000, 10000, 25000, 50000].includes(totalAmount)) {
+            await clanController.increaseClanRating(id, totalAmount);
+        } else if (totalAmount === 1) {
+            await this.updateSubscription(id, 7, totalAmount);
+        }
+
+        return true;
     }
 
     async updateSubscription(userId: string, days: number, amountSpent: number): Promise<void> {
-        // Получаем текущую дату
         const currentDate = new Date();
 
-        // Получаем существующую дату окончания подписки, если она есть
-        const selectEndDateSql = `SELECT endDateOfWork FROM premium WHERE userId = ?`;
-        const existingSubscription = await this.db.get(selectEndDateSql, [userId]);
+        const selectEndDateSql = 'SELECT endDateOfWork FROM premium WHERE userId = ?';
+        const [existingSubscriptionRows] = await this.db.execute(selectEndDateSql, [userId]);
+        const existingSubscription = (existingSubscriptionRows as any[])[0];
 
         let baseDate: Date;
 
@@ -106,54 +116,43 @@ class PremiumController {
             baseDate = currentDate;
         }
 
-        // Добавляем дни к базовой дате
         const endDate = new Date(baseDate);
         endDate.setDate(baseDate.getDate() + days);
-        const endDateOfWork = endDate.toISOString().split('T')[0]; // Форматируем дату в YYYY-MM-DD
+        const endDateOfWork = endDate.toISOString().split('T')[0];
 
-        // Обновляем поля endDateOfWork и amountSpent для конкретного пользователя
         const updateSubscriptionSql = `
-        INSERT INTO premium (userId, amountSpent, endDateOfWork)
-        VALUES (?, ?, ?)
-        ON CONFLICT(userId) DO UPDATE SET
-            amountSpent = amountSpent + excluded.amountSpent,
-            endDateOfWork = excluded.endDateOfWork;
-    `;
-        await this.db.run(updateSubscriptionSql, [userId, amountSpent, endDateOfWork]);
-        console.error("Update Successful");
+            INSERT INTO premium (userId, amountSpent, endDateOfWork)
+            VALUES (?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                amountSpent = amountSpent + VALUES(amountSpent),
+                endDateOfWork = VALUES(endDateOfWork)
+        `;
+        await this.db.execute(updateSubscriptionSql, [userId, amountSpent, endDateOfWork]);
+        console.error('Update Successful');
     }
 
-
     async getPremiumUsers(userId: string): Promise<PremiumItem | null> {
-        const premiumSql = `SELECT amountSpent, endDateOfWork
-                        FROM premium
-                        WHERE userId = ?`;
-        const premium = await this.db.get(premiumSql, [userId]);
+        const premiumSql = 'SELECT amountSpent, endDateOfWork FROM premium WHERE userId = ?';
+        const [premiumRows] = await this.db.execute(premiumSql, [userId]);
+        const premium = (premiumRows as any[])[0];
 
         if (!premium) {
-            // Если запись не найдена, возвращаем null или другое значение по умолчанию
             return null;
         }
 
-        return premium;
+        return premium as PremiumItem;
     }
 
     async getAllPremiumUsers(): Promise<any[]> {
-
         try {
-            const sql = `
-                SELECT userId, amountSpent, endDateOfWork
-                FROM premium
-            `;
-            const users = await this.db.all(sql);
-            return users;
+            const sql = 'SELECT userId, amountSpent, endDateOfWork FROM premium';
+            const [users] = await this.db.execute(sql);
+            return users as any[];
         } catch (error) {
-            console.error("Failed to get premium users:", error);
+            console.error('Failed to get premium users:', error);
             throw error;
         }
     }
-
-
 }
 
 export default PremiumController;
