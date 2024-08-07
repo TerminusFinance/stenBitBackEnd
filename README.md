@@ -16,12 +16,18 @@
 - scr/tonWork - methods for works remote api
 - scr/types - methods for typezation
 
-### To start the server, you need to create a param.env file in the root of the project where you specify the following parameters:
+### To start the server, you need to create a `param.env` file in the root of the project where you specify the following parameters:
 
 - MY_SECRET_TOKEN (from telegram bot)
 - user (from Mysql)
 - password (from Mysql)
 - database (from Mysql)
+
+### Also for tokens to work correctly, you need to create a file `tokens.json` and fill it with tokens
+
+`{
+"tokens": ["YOUR_TOKENS", "YOUR_TOKENS"]
+}`
 
 ## Documentation method api:
 
