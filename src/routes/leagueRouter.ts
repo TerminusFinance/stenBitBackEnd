@@ -13,7 +13,6 @@ function leagueRouter(leagueController: leagueController) {
         }
     });
 
-
     router.post('/getUsersByLvl', async (req: Request, res: Response) => {
         try {
             const { levels } = req.body;

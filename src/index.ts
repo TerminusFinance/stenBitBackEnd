@@ -14,6 +14,7 @@ import ClanController from "./controllers/clanController";
 import clanRouter from "./routes/clanRouter";
 import premiumRouter from "./routes/premiumRouter";
 import PremiumController from "./controllers/premiumController";
+import {getManifest} from "./routes/manifestRouter";
 
 
 const app = express();
@@ -46,6 +47,9 @@ connectDatabase().then(db => {
             res.status(404).json({message: 'File not found'});
         }
     });
+
+    app.get('/api/manifest', getManifest);
+
 
     app.listen(port, () => {
         console.log(`Server is running on port ${port}`);

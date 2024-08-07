@@ -7,13 +7,13 @@ const router = express.Router();
 
 function userRouter(userController: UserController) {
     router.post('/createNewUsers', authMiddleware, async (req: Request, res: Response) => {
-        const {coins, address} = req.body;
+        const {address} = req.body;
         try {
             const initData = res.locals.initData as InitDataParsed;
             const userId = initData.user?.id
             const name = initData.user?.firstName
             if (userId != undefined && name != undefined) {
-                const user = await userController.createUser(userId.toString(), name, coins, address);
+                const user = await userController.createUser(userId.toString(), name, 0, address);
                 res.status(201).json(user);
             }
         } catch (error) {

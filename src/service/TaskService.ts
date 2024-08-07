@@ -17,11 +17,9 @@ class TaskService {
 
     constructor(private db: Connection) {}
 
-
     setUserService(userService: UserService) {
         this.userService = userService;
     }
-
 
     async checkAndUpdateTasksForUser(userId: string) {
         const userTasksSql = `
@@ -62,7 +60,7 @@ class TaskService {
                 console.log("lastDateUpdate:", lastDateUpdate);
                 console.log("currentDate:", currentDate);
 
-                if (!lastDateUpdate || lastDateUpdate !== currentDate || taskWithParsedType.completed == true) {
+                if ((!lastDateUpdate && taskWithParsedType.completed == true) || (lastDateUpdate !== currentDate && taskWithParsedType.completed == true)) {
                     console.log('Обновляем ежедневное задание');
                     taskWithParsedType.completed = false;
                     const updateTaskSql = `
@@ -73,13 +71,11 @@ class TaskService {
                 `;
                     await this.db.execute(updateTaskSql, [0, userId, task.taskId]);
                 }  else {
-
                     console.log("ignor")
                 }
             }
         }
     }
-
 
     async checkSuccessTask(userId: string, taskId: number) {
         const user = await this.userService.getUserFromIdSimply(userId);
