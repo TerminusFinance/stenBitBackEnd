@@ -36,14 +36,19 @@ class PremiumController {
 
     async buyPremium(chat_id: string, selectedSubscriptionOptions: SubscriptionOptions) {
         const course = 0.021;
-        let resultAmount = Math.round(selectedSubscriptionOptions.price / course);
+        let resultAmount: number;
+
+        const directAmounts = [7, 1000, 5000, 10000, 25000, 50000];
 
         if (![7, 12, 25, 1000, 5000, 10000, 25000, 50000].includes(selectedSubscriptionOptions.price)) {
             throw new Error('This service does not exist');
         }
 
-        if(selectedSubscriptionOptions.price == 7) {
-            resultAmount = 1
+        if (directAmounts.includes(selectedSubscriptionOptions.price)) {
+            resultAmount = selectedSubscriptionOptions.price;
+        } else {
+            // Рассчитываем значение по курсу для остальных
+            resultAmount = Math.round(selectedSubscriptionOptions.price / course);
         }
 
         const currentLabeledPrice: LabeledPrice[] = [{
@@ -60,6 +65,7 @@ class PremiumController {
         console.log('resultPayment - ', resultPayment);
         return resultPayment;
     }
+
 
     async sendPayment(chat_id: string, title: string, description: string, payload: string, currency: string, prices: LabeledPrice[]) {
         const url = `https://api.telegram.org/bot${botToken}/createInvoiceLink`;
@@ -93,7 +99,7 @@ class PremiumController {
             await this.updateSubscription(id, 14, totalAmount);
         } else if ([1000, 5000, 10000, 25000, 50000].includes(totalAmount)) {
             await clanController.increaseClanRating(id, totalAmount);
-        } else if (totalAmount === 1) {
+        } else if (totalAmount === 7) {
             await this.updateSubscription(id, 7, totalAmount);
         }
 
