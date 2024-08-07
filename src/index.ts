@@ -30,12 +30,15 @@ connectDatabase().then(db => {
     const premiumController = new PremiumController(db);
     const clanController = new ClanController(db);
 
+
     app.use('/api/users', userRouter(userController));
     app.use('/api/leagues', leagueRouter(leagueController));
     app.use('/api/task', taskRouter(userController));
     app.use('/api/adm', adminsRouter(adminsController));
     app.use('/api/prem', premiumRouter(premiumController));
     app.use('/api/clan', clanRouter(clanController));
+    app.use('/api/prem', premiumRouter(premiumController))
+    
 
     app.get('/api/img/:filename', (req, res) => {
         const filename = req.params.filename;

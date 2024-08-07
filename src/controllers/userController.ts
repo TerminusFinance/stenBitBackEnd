@@ -1,21 +1,7 @@
 import mysql, { Connection } from 'mysql2/promise';
-
-import {isUserSubscribed, sendToCheckUserHaveNftFromCollections} from "../tonWork/CheckToNftitem";
-import {
-    Boost, CompletedTask, Invitations, InvitedUser, ISCheckFriends,
-    IsCheckNftTask, ISDailyTask, IsOpenUrl, IsStockReg,
-    IsSubscribeToTg, Task,
-    TaskCardProps,
-    TaskType,
-    User,
-    UserBoost,
-    UserTask, UserTaskFormated
-} from "../types/Types";
-import clanController from "./clanController";
-import {FieldPacket} from "mysql2";
-import PremiumController from "./premiumController";
 import UserService from "../service/UserService";
 import TaskService from "../service/TaskService";
+import {TaskCardProps, TaskType, User, UserTask} from "../types/Types";
 
 
 class UserController {
@@ -100,7 +86,6 @@ class UserController {
     async checkSuccessTask(userId: string, taskId: number) {
         return this.taskService.checkSuccessTask(userId, taskId)
     }
-
 
     async updateUserTask(userId: string, taskId: number, updatedFields: Partial<UserTask>): Promise<void> {
         return this.taskService.updateUserTask(userId, taskId, updatedFields);

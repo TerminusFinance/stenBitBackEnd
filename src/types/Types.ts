@@ -159,6 +159,7 @@ export const IsStockReg = (taskType: TaskType): taskType is StockRegTask => {
     return taskType.type === 'StockReg';
 };
 
+
 export const ISCheckFriends = (taskType: TaskType): taskType is CheckFriendsTask => {
     return taskType.type === 'CheckFriends';
 };
