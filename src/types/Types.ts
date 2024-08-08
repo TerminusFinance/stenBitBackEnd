@@ -137,7 +137,14 @@ export interface SubscribeToTgTask {
     id: string;
 }
 
-export type TaskType = SampleTask | OpenUrlTask | CheckNftTask | CheckFriendsTask | SubscribeToTgTask | StockRegTask | DailyTask;
+
+export interface InternalChallengeTask {
+    type: 'InternalChallenge';
+    nameChallenge: string;
+}
+
+
+export type TaskType = SampleTask | OpenUrlTask | CheckNftTask | CheckFriendsTask | SubscribeToTgTask | StockRegTask | DailyTask | InternalChallengeTask;
 
 export const ISDailyTask = (taskType: TaskType): taskType is DailyTask => {
     return taskType.type === 'Daily';
@@ -163,6 +170,9 @@ export const ISCheckFriends = (taskType: TaskType): taskType is CheckFriendsTask
     return taskType.type === 'CheckFriends';
 };
 
+export const IsInternalChallengeTask =  (taskType: TaskType): taskType is InternalChallengeTask => {
+    return taskType.type === 'InternalChallenge';
+};
 
 export interface Boost {
     boostName: string;

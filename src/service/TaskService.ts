@@ -2,7 +2,7 @@ import mysql, {Connection} from "mysql2/promise";
 import {
     ISCheckFriends,
     IsCheckNftTask,
-    ISDailyTask,
+    ISDailyTask, IsInternalChallengeTask,
     IsOpenUrl,
     IsStockReg,
     IsSubscribeToTg, Task, TaskCardProps, TaskType, User, UserTask,
@@ -10,6 +10,7 @@ import {
 } from "../types/Types";
 import {isUserSubscribed, sendToCheckUserHaveNftFromCollections} from "../tonWork/CheckToNftitem";
 import UserService from "./UserService";
+import ClanController from "../controllers/clanController";
 
 
 class TaskService {
@@ -36,7 +37,7 @@ class TaskService {
         let userTasks = rowUserTasks as UserTaskFormated[];
 
         for (const task of userTasks) {
-            // Разбираем taskType как JSON
+
             let parsedTaskType;
             try {
                 parsedTaskType = JSON.parse(task.taskType);
@@ -45,7 +46,6 @@ class TaskService {
                 continue;
             }
 
-            // Создаем новый объект с разобранным taskType
             const taskWithParsedType = {
                 ...task,
                 taskType: parsedTaskType
@@ -151,6 +151,20 @@ class TaskService {
                         } catch (e) {
                             return e;
                         }
+                    } else if (IsInternalChallengeTask(userTask.taskType)) {
+                        try {
+                            console.error("IsInternalChallengeTask voshol")
+                            const resultCheck = await this.checkInternalChallenge(user, userTask);
+                            console.error("IsInternalChallengeTask resultCheck -", resultCheck)
+                            if (resultCheck === "Task completion status updated successfully") {
+                                const newUserState = await this.userService.getUserFromIdSimply(userId);
+                                return newUserState;
+                            } else {
+                                return resultCheck;
+                            }
+                        } catch (e) {
+                            return e;
+                        }
                     }
                 } else {
                     return "User task not found";
@@ -158,6 +172,34 @@ class TaskService {
             }
         }
         return "User not found";
+    }
+
+
+    async checkInternalChallenge(user: User, selectedTask: UserTask) {
+        if(IsInternalChallengeTask(selectedTask.taskType)) {
+
+            switch (selectedTask.taskType.nameChallenge) {
+                case "walletAddress" :
+                        if(user.address != undefined && user.address != "") {
+                            await this.updateTaskCompletion(user.userId, selectedTask.taskId, true);
+                            return "Task completion status updated successfully";
+                        } else  {
+                            return "You didn't link the address"
+                        }
+                case "createClan" :
+                        const controller = new ClanController(this.db)
+                        const userClanResult = await controller.getUserClan(user.userId)
+                        if(userClanResult.role != undefined && userClanResult.role == "creator") {
+                            await this.updateTaskCompletion(user.userId, selectedTask.taskId, true);
+                            return "Task completion status updated successfully";
+                        } else {
+                            return "You have not created a clan"
+                        }
+            }
+            return "Task named is not supported"
+        } else {
+            return "Task has any type";
+        }
     }
 
 
@@ -173,16 +215,6 @@ class TaskService {
                 console.log("Updating task completion status and date.");
 
                 await this.updateTaskCompletion(user.userId, selectedTask.taskId, true);
-
-                // Обновляем lastDateUpdate на текущую дату в JSON объекте
-                // selectedTask.taskType.lastDateUpdates = currentDate;
-                //
-                // // Преобразуем обновленный объект taskType обратно в строку
-                // const updatedTaskTypeJson = JSON.stringify(selectedTask.taskType);
-
-                // Обновляем JSON объект taskType в базе данных
-
-
                 return "Task completion status updated successfully";
             } else {
                 return "Task has already been completed today";
