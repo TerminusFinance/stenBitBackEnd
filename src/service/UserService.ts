@@ -26,11 +26,9 @@ class UserService {
         this.taskService = taskService;
     }
 
-
     private generateUniqueCodeToInvite(): string {
         return `UC_${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
     }
-
 
     async createUser(userId: string, userName: string, coins: number, address: string): Promise<User> {
         try {
@@ -123,21 +121,17 @@ class UserService {
     async addCoinsAndDeductEnergy(userId: string, coins: number): Promise<{ newEnergy: number, coins: number }> {
 
         if(coins <= 0) {
-            throw new Error("Сoins must be greater than 0")
+            throw new Error("Coins must be greater than 0");
         }
 
         const userSql = `
         SELECT u.*,
-               b.boostName,
-               ub.level,
-               b.price,
                p.endDateOfWork,
-               ub.turboBoostUpgradeCount,
+               ub.level AS turboLevel,
                ub.lastTurboBoostUpgrade
         FROM users u
-                 LEFT JOIN userBoosts ub ON u.userId = ub.userId
-                 LEFT JOIN boosts b ON ub.boostName = b.boostName
-                 LEFT JOIN premium p ON u.userId = p.userId
+        LEFT JOIN premium p ON u.userId = p.userId
+        LEFT JOIN userBoosts ub ON u.userId = ub.userId AND ub.boostName = 'turbo'
         WHERE u.userId = ?
     `;
         const [rows] = await this.db.execute(userSql, [userId]);
@@ -172,81 +166,64 @@ class UserService {
                              WHERE userId = ?`;
         await this.db.execute(updateEnergySql, [user.currentEnergy, currentTime.toISOString(), userId]);
 
-        // Логика обработки бустов
-        const [boostRows] = await this.db.execute(`
-        SELECT b.boostName, ub.level, b.price, ub.turboBoostUpgradeCount, ub.lastTurboBoostUpgrade
-        FROM userBoosts ub
-                 JOIN boosts b ON ub.boostName = b.boostName
-        WHERE ub.userId = ?
-    `, [userId]);
-
-        user.boosts = (boostRows as any[]).map(boost => ({
-            boostName: boost.boostName,
-            level: boost.level,
-            price: boost.price * Math.pow(2, boost.level - 1),
-            turboBoostUpgradeCount: boost.turboBoostUpgradeCount,
-            lastTurboBoostUpgrade: boost.lastTurboBoostUpgrade
-        }));
-
         // Проверка на активный турбобуст
-        const turboBoost = user.boosts.find((boost: UserBoost) => boost.boostName === 'turbo');
-        const isTurboBoostActive = turboBoost && turboBoost.lastTurboBoostUpgrade &&
-            new Date(turboBoost.lastTurboBoostUpgrade).getTime() + 60000 > currentTime.getTime();
+        const isTurboBoostActive = user.lastTurboBoostUpgrade &&
+            new Date(user.lastTurboBoostUpgrade).getTime() + 60000 > currentTime.getTime();
 
-        if (user.boosts) {
-            const maxCoinsChanged = user.currentEnergy * 2;
+        const maxCoinsChanged = isTurboBoostActive
+            ? 1600 * 2 * user.turboLevel
+            : user.currentEnergy * 2;
 
-            // Если турбобуст не активен, проверяем и списываем энергию
-            if (!isTurboBoostActive) {
-                if (coins > maxCoinsChanged) {
-                    throw new Error('The user cannot get that many coins');
-                }
-                if (user.currentEnergy < coins) {
-                    throw new Error('The user cannot get that many coins due to energy limits');
-                }
-
-                user.currentEnergy = Math.max(0, user.currentEnergy - coins);
+        // Если турбобуст не активен, проверяем и списываем энергию
+        if (!isTurboBoostActive) {
+            if (coins > maxCoinsChanged) {
+                throw new Error('The user cannot get that many coins');
+            }
+            if (user.currentEnergy < coins) {
+                throw new Error('The user cannot get that many coins due to energy limits');
             }
 
-            const newCoins = user.coins + coins;
-            const updateUserSql = `UPDATE users
-                               SET coins         = ?,
-                                   currentEnergy = ?
-                               WHERE userId = ?`;
-            await this.db.execute(updateUserSql, [newCoins, user.currentEnergy, userId]);
-
-            if (user.referral) {
-                const referralSql = `SELECT *
-                                 FROM users
-                                 WHERE codeToInvite = ?`;
-                const [referralRows] = await this.db.execute(referralSql, [user.referral]);
-                const inviter = (referralRows as any[])[0];
-                if (inviter) {
-                    const updatedCoins = newCoins;
-                    const originalThousands = Math.floor(user.coins / 1000);
-                    const updatedThousands = Math.floor(updatedCoins / 1000);
-                    if (updatedThousands > originalThousands) {
-                        const additionalCoins = (updatedThousands - originalThousands) * 100;
-                        const updateInviterCoinsSql = `UPDATE users
-                                                   SET coins = coins + ?
-                                                   WHERE userId = ?`;
-                        await this.db.execute(updateInviterCoinsSql, [additionalCoins, inviter.userId]);
-
-                        const updateInvitationSql = `
-                        INSERT INTO user_invitations (inviter_id, invitee_id, coinsReferral)
-                        VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE
-                            coinsReferral = coinsReferral + VALUES(coinsReferral)
-                    `;
-                        await this.db.execute(updateInvitationSql, [inviter.userId, userId, additionalCoins]);
-                    }
-                }
+            user.currentEnergy = Math.max(0, user.currentEnergy - coins);
+        } else {
+            if (coins > maxCoinsChanged) {
+                throw new Error('The user cannot get that many coins');
             }
-            return { newEnergy: user.currentEnergy, coins: newCoins };
         }
 
-        throw new Error('User boosts not found');
-    }
+        const newCoins = user.coins + coins;
+        const updateUserSql = `UPDATE users
+                           SET coins         = ?,
+                               currentEnergy = ?
+                           WHERE userId = ?`;
+        await this.db.execute(updateUserSql, [newCoins, user.currentEnergy, userId]);
 
+        // Обработка реферальной системы
+        if (user.referral) {
+            const referralSql = `SELECT * FROM users WHERE codeToInvite = ?`;
+            const [referralRows] = await this.db.execute(referralSql, [user.referral]);
+            const inviter = (referralRows as any[])[0];
+            if (inviter) {
+                const originalThousands = Math.floor(user.coins / 1000);
+                const updatedThousands = Math.floor(newCoins / 1000);
+                if (updatedThousands > originalThousands) {
+                    const additionalCoins = (updatedThousands - originalThousands) * 100;
+                    const updateInviterCoinsSql = `UPDATE users
+                                               SET coins = coins + ?
+                                               WHERE userId = ?`;
+                    await this.db.execute(updateInviterCoinsSql, [additionalCoins, inviter.userId]);
+
+                    const updateInvitationSql = `
+                    INSERT INTO user_invitations (inviter_id, invitee_id, coinsReferral)
+                    VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE
+                        coinsReferral = coinsReferral + VALUES(coinsReferral)
+                `;
+                    await this.db.execute(updateInvitationSql, [inviter.userId, userId, additionalCoins]);
+                }
+            }
+        }
+
+        return { newEnergy: user.currentEnergy, coins: newCoins };
+    }
 
 
     async getUserFromId(userId: string, imageAvatar: string | null): Promise<User | undefined> {
@@ -445,8 +422,8 @@ class UserService {
                                      SET currentEnergy = ?,
                                          dataUpdate    = ?
                                      WHERE userId = ?`;
-            await this.db.execute(updateEnergySql, [user.currentEnergy, user.dataUpdate, userId]);
-
+            await this.db.execute(updateEnergySql, [user.currentEnergy, currentTime.toISOString(), userId]);
+            console.log("user.dataUpdate - ",user.dataUpdate)
             return {
                 ...user,
                 completedTasks: tasks.map(task => task.taskId),
@@ -596,6 +573,16 @@ class UserService {
                 }
 
                 if (boostName === 'turbo') {
+                    const newCoins = user.coins - priceSelectedBoost;
+                    if (newCoins < 0) {
+                        throw new Error('Not enough coins');
+                    }
+
+                    await this.updateUser(userId, { coins: newCoins });
+                    await this.db.execute(
+                        `UPDATE userBoosts SET level = level + 1 WHERE userId = ? AND boostName = ?`,
+                        [userId, boostName]
+                    );
                     const now = new Date();
                     const today = now.toISOString().split('T')[0];
                     const lastUpgradeDate = userBoost.lastTurboBoostUpgrade ? new Date(userBoost.lastTurboBoostUpgrade).toISOString().split('T')[0] : null;
@@ -690,11 +677,43 @@ class UserService {
 
 
     async getUserFromIdSimply(userId: string): Promise<User | undefined> {
-        const userSql = `SELECT * FROM users WHERE userId = ?`;
+        const userSql = `
+            SELECT u.*, p.endDateOfWork
+            FROM users u
+                     LEFT JOIN premium p ON u.userId = p.userId
+            WHERE u.userId = ?
+        `;
+
         const [userRows] = await this.db.execute<mysql.RowDataPacket[]>(userSql, [userId]);
-        const user = userRows[0] as User;
+        const user = (userRows as any[])[0];
 
         if (user) {
+
+
+            // Проверка наличия премиум-подписки
+            let energyRecoveryRate = 1;
+            if (user.endDateOfWork) {
+                const endDateOfWork = new Date(user.endDateOfWork);
+                const currentDate = new Date();
+                if (endDateOfWork >= currentDate) {
+                    energyRecoveryRate = 2; // Увеличиваем скорость восстановления энергии для премиум-пользователей
+                }
+            }
+
+            // Calculate energy recovery
+            const currentTime = new Date();
+            const lastUpdate = user.dataUpdate ? new Date(user.dataUpdate) : new Date();
+            const elapsedSeconds = Math.floor((currentTime.getTime() - lastUpdate.getTime()) / 1000);
+            const recoveredEnergy = elapsedSeconds * energyRecoveryRate;
+            user.currentEnergy = Math.min(user.maxEnergy, user.currentEnergy + recoveredEnergy);
+
+            // Update the user's currentEnergy and dataUpdate in the database
+            const updateEnergySql = `UPDATE users
+                  SET currentEnergy = ?,
+                      dataUpdate    = ?
+                  WHERE userId = ?`;
+            await this.db.execute(updateEnergySql, [user.currentEnergy, currentTime.toISOString(), userId]);
+
             const tasksSql = `SELECT taskId FROM completedTasks WHERE userId = ?`;
             const [taskRows] = await this.db.execute<mysql.RowDataPacket[]>(tasksSql, [userId]);
             const tasks = taskRows as CompletedTask[];
@@ -713,17 +732,6 @@ class UserService {
                 level: boost.level,
                 price: boost.price * Math.pow(2, boost.level - 1)
             }));
-
-            const tapBoost = user.boosts.find(boost => boost.boostName === 'tapBoot');
-            if (tapBoost) {
-                if (!user.lastTapBootUpdate) {
-                    // user.lastTapBootUpdate = new Date().toISOString();
-                } else {
-                    await this.updateCoinsWithTapBoot(userId, tapBoost.level, user.lastTapBootUpdate);
-                }
-            }
-
-            console.error("tapBoost - ", tapBoost);
 
             const inviteesSql = `
             SELECT u.userId, u.userName, ui.coinsReferral
@@ -796,8 +804,7 @@ class UserService {
                     etaps: task.etaps
                 };
             });
-
-            const energyBoost = user.boosts.find(boost => boost.boostName === 'energy limit');
+            const energyBoost = user.boosts.find((boost: UserBoost) => boost.boostName === 'energy limit');
             const newMaxEnergy = energyBoost ? 1000 + (energyBoost.level - 1) * 500 : 1000;
 
             // Если maxEnergy в базе данных равно 0, обновляем его
@@ -867,7 +874,7 @@ class UserService {
 
 
 
-    async processInvitation(inviteCode: string, newUserId: string, newUserName: string): Promise<User> {
+    async processInvitation(inviteCode: string, newUserId: string, newUserName: string, isPremium: boolean): Promise<User> {
         // Определение типа кода приглашения
         const isClanInvite = inviteCode.startsWith('CL');
 
@@ -918,6 +925,19 @@ class UserService {
             VALUES (?, ?, 0)
         `;
             await this.db.execute(insertInvitationSql, [inviter.userId, newUserId]);
+
+                const additionalCoins = isPremium ? 2500 : 500;
+                const updateInviterCoinsSql = `UPDATE users
+                                                   SET coins = coins + ?
+                                                   WHERE userId = ?`;
+                await this.db.execute(updateInviterCoinsSql, [additionalCoins, inviter.userId]);
+                const updateInvitationSql = `
+                        INSERT INTO user_invitations (inviter_id, invitee_id, coinsReferral)
+                        VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE
+                            coinsReferral = coinsReferral + VALUES(coinsReferral)
+                    `;
+                await this.db.execute(updateInvitationSql, [inviter.userId, newUserId, additionalCoins]);
+
         }
 
         // Инициализация бустов для нового пользователя

@@ -1,5 +1,6 @@
 import axios from "axios";
 import {botToken} from "../../config";
+import {Address} from "ton-core";
 
 export interface ResultCheckNftItem {
     state: boolean;
@@ -100,6 +101,116 @@ export async function isUserSubscribed(userId: number, channelId: string): Promi
         }
         console.error('Error checking user subscription:');
         return false
+    } catch (error) {
+        console.error('Error checking user subscription:', error);
+        return false;
+    }
+}
+
+
+interface Account {
+    address: string;
+    is_scam: boolean;
+    is_wallet: boolean;
+}
+
+interface Jetton {
+    address: string;
+    name: string;
+    symbol: string;
+    decimals: number;
+    image: string;
+    verification: string;
+}
+
+interface JettonTransferAction {
+    sender: Account;
+    recipient: Account;
+    senders_wallet: string;
+    recipients_wallet: string;
+    amount: string;
+    jetton: Jetton;
+}
+
+interface TonTransferAction {
+    sender: Account;
+    recipient: Account;
+    amount: bigint;
+    comment: string;
+}
+
+interface SimplePreview {
+    name: string;
+    description: string;
+    value: string;
+    value_image?: string;
+    accounts: Account[];
+}
+
+interface Action {
+    type: string;  // "JettonTransfer" | "TonTransfer" и т.д.
+    status: string;  // "ok" и другие возможные статусы
+    JettonTransfer?: JettonTransferAction;
+    TonTransfer?: TonTransferAction;
+    simple_preview: SimplePreview;
+    base_transactions: string[];
+}
+
+interface Event {
+    event_id: string;
+    account: Account;
+    timestamp: number;
+    actions: Action[];
+    is_scam: boolean;
+    lt: number;
+    in_progress: boolean;
+    extra: number;
+}
+
+interface EventsResponse {
+    events: Event[];
+    next_from: number;
+}
+
+function getUnixTimestamp(date: Date): number {
+    return Math.floor(date.getTime() / 1000);
+}
+
+export async function CheckTransactions(wallet: string, amount: bigint, walletReceiver: string): Promise<boolean | string> {
+    try {
+        try {
+            const currentDate = new Date();
+            const endDate = getUnixTimestamp(currentDate); // текущая дата
+            const startDate = getUnixTimestamp(new Date(currentDate.getTime() - 30 * 60 * 1000));
+            console.log("endDate - ",endDate)
+            console.log("startDate - ",startDate)
+            const parsetAddress = Address.parse(walletReceiver)
+            // const response = await axios.get<EventsResponse>(`https://testnet.tonapi.io/v2/accounts/${wallet}/events?limit=50&end_date=${endDate}&start_date=${startDate}&subject_only=true`)
+            const response = await axios.get<EventsResponse>(`https://tonapi.io/v2/accounts/${wallet}/events?limit=50&end_date=${endDate}&start_date=${startDate}&subject_only=true`)
+            console.log("parsedResponse - ",response.request)
+            const parsedResponse = response.data
+            console.log("parsetAddress - ",parsetAddress.toRawString())
+            console.log("parsedResponse - ",parsedResponse)
+            const filteredEvents = parsedResponse.events.filter(event =>
+                event.actions.some(action =>
+                    action.type === 'TonTransfer' &&
+                    action.status === 'ok' &&
+                    action.TonTransfer?.recipient.address == parsetAddress.toRawString() &&
+                    action.TonTransfer?.amount == amount
+                )
+            );
+
+            if(filteredEvents.length == 0) {
+                return "the transaction was not perfect"
+            } else {
+                return true
+            }
+
+        } catch (error) {
+            console.error('Error checking subscription:', error);
+            return false;
+        }
+
     } catch (error) {
         console.error('Error checking user subscription:', error);
         return false;

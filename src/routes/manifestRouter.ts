@@ -11,3 +11,11 @@ export const getManifest = (req: Request, res: Response): void => {
 
     res.json(manifest);
 };
+
+export const getTermOfUse = (req: Request, res: Response): void => {
+    const manifest = {
+        TermsOfUseExample: "Terms of use example"
+    };
+
+    res.json(manifest);
+}

@@ -24,6 +24,7 @@ async function connectDatabase() {
 
     await createTables(connection);
     await insertInitialData(connection);
+    await addUrlChannelToClans(connection);
 
     return connection;
 }
@@ -148,13 +149,15 @@ async function createTables(db: Connection) {
             clanName VARCHAR(255) NOT NULL,
             description VARCHAR(255) DEFAULT NULL,
             rating INT DEFAULT 0,
-            createAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            createAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            Urlchanel VARCHAR(255) DEFAULT NULL
             );
     `;
 
+
     const createUserClansTable = `
         CREATE TABLE IF NOT EXISTS userClans (
-                                                 userId VARCHAR(255),
+            userId VARCHAR(255),
             clanId VARCHAR(255),
             role ENUM('simple', 'creator') DEFAULT 'simple',
             joinDate TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -162,8 +165,56 @@ async function createTables(db: Connection) {
             PRIMARY KEY (userId, clanId),
             FOREIGN KEY (userId) REFERENCES users(userId),
             FOREIGN KEY (clanId) REFERENCES clans(clanId)
-            );
+        );
     `;
+
+    // Новые таблицы
+    const createCoinsProgressLevelTable = `
+        CREATE TABLE IF NOT EXISTS CoinsProgressLevel (
+            levelId INT AUTO_INCREMENT PRIMARY KEY,
+            levelName VARCHAR(255) NOT NULL,
+            description TEXT DEFAULT NULL,
+            price INT NOT NULL
+        );
+    `;
+
+    const createUserCoinsProgressLevelTable = `
+        CREATE TABLE IF NOT EXISTS UserCoinsProgressLevel (
+            userId VARCHAR(255),
+            levelId INT,
+            FOREIGN KEY (userId) REFERENCES users(userId),
+            FOREIGN KEY (levelId) REFERENCES CoinsProgressLevel(levelId),
+            PRIMARY KEY (userId, levelId)
+        );
+    `;
+
+
+    // Таблица UserLeague
+    const createUserLeagueTable = `
+        CREATE TABLE IF NOT EXISTS UserLeague (
+            leagueId INT AUTO_INCREMENT PRIMARY KEY,
+            userId VARCHAR(255),
+            userName VARCHAR(255),
+            imageAvatar VARCHAR(255),
+            score INT DEFAULT 0,
+            buyscore INT DEFAULT 0,
+            freescore INT DEFAULT 0,
+            FOREIGN KEY (userId) REFERENCES users(userId)
+        );
+    `;
+
+    const createAcquisitionsTableQuery = `
+        CREATE TABLE IF NOT EXISTS acquisitions (
+            userId VARCHAR(255),
+            totalAmount DECIMAL(10, 2) DEFAULT 0,
+            lastPurchase VARCHAR(255) DEFAULT NULL,
+            selectedPurchase VARCHAR(255) DEFAULT NULL,
+            selectedAmount DECIMAL(10, 2) DEFAULT 0,
+            PRIMARY KEY (userId),
+            FOREIGN KEY (userId) REFERENCES users(userId) ON DELETE CASCADE
+        );
+    `;
+
 
     try {
         await db.execute(createUsersTable);
@@ -177,11 +228,16 @@ async function createTables(db: Connection) {
         await db.execute(createPremiumTable);
         await db.execute(createClansTable);
         await db.execute(createUserClansTable);
+        await db.execute(createCoinsProgressLevelTable);
+        await db.execute(createUserCoinsProgressLevelTable);
+        await db.execute(createUserLeagueTable);
+        await db.execute(createAcquisitionsTableQuery);
         console.log('Tables created successfully');
     } catch (error) {
         console.error('Failed to create tables:', error);
     }
 }
+
 
 
 // Функция для вставки начальных данных
@@ -211,5 +267,21 @@ async function insertInitialData(db: Connection) {
     }
 }
 
-export default connectDatabase;
 
+async function addUrlChannelToClans(db: Connection) {
+    try {
+        const addUrlChannelQuery = `
+            ALTER TABLE clans 
+            ADD COLUMN Urlchanel VARCHAR(255) DEFAULT NULL;
+        `;
+
+        // Выполнение запроса на добавление нового столбца
+        await db.execute(addUrlChannelQuery);
+        console.log('Urlchanel column added to clans table successfully');
+    } catch (error) {
+            console.error('Failed to add Urlchanel column to clans table:', error);
+    }
+}
+
+
+export default connectDatabase;

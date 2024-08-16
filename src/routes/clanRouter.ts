@@ -151,6 +151,23 @@ function clanRouter(clanController: clanController) {
         }
     })
 
+    router.post('/boostRang', authMiddleware, async (req: Request, res: Response) => {
+        try {
+            const {selectedSubscriptionOptions} = req.body;
+            const initData = res.locals.initData as InitDataParsed;
+            const id = initData.user?.id
+            if (id != undefined) {
+                const resultPrem = await clanController.boostClan(`${id}`, selectedSubscriptionOptions);
+                res.status(200).json(resultPrem);
+            } else {
+                res.status(404).json({message: 'Not found'});
+            }
+        } catch (e) {
+            console.error(e)
+            res.status(400).json({message: e});
+        }
+    })
+
     return router;
 }
 

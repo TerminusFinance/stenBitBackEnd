@@ -39,22 +39,6 @@ function premiumRouter(premiumController: PremiumController) {
         }
     });
 
-    router.post('/subscriptionProcessing', authFromCode, async (req, res) => {
-        try {
-            const {providerPaymentChargeId, totalAmount} = req.body;
-            const resultPrem = await premiumController.subscriptionProcessing(providerPaymentChargeId, totalAmount)
-            if (resultPrem) {
-                res.status(200).json(resultPrem);
-            } else {
-                res.status(404).json({message: 'Not found'});
-            }
-        } catch (e) {
-            console.error(e)
-            res.status(400).json({message: e});
-        }
-    })
-
-
     router.get('/getAllPremiumUsers', authFromCode, async (req, res) => {
         try {
             const result = await premiumController.getAllPremiumUsers()

@@ -1,30 +1,60 @@
 import { Connection, RowDataPacket, FieldPacket } from 'mysql2/promise';
 import { User } from "../types/Types";
+import UserController from "./userController";
 
 class AdminsController {
     constructor(private db: Connection) {}
 
-    async updateUser(userId: string, updatedData: Partial<User>): Promise<string> {
+    async updateUser(userId: string, updatedData: Partial<User>): Promise<User | undefined> {
         const { userName, coins, address, referral, currentEnergy, maxEnergy } = updatedData;
         const updateDate = new Date().toISOString();
 
-        const updateUserSql = `
-            UPDATE users
-            SET userName          = COALESCE(?, userName),
-                coins             = COALESCE(?, coins),
-                address           = COALESCE(?, address),
-                referral          = COALESCE(?, referral),
-                dataUpdate        = ?,
-                currentEnergy     = COALESCE(?, currentEnergy),
-                maxEnergy         = COALESCE(?, maxEnergy),
-                lastTapBootUpdate = ?
-            WHERE userId = ?
-        `;
+        // Построение динамического SQL-запроса и массива параметров
+        let updateUserSql = `
+    UPDATE users
+    SET dataUpdate = ?,
+        lastTapBootUpdate = ?`;
+        const params: (string | number)[] = [updateDate, updateDate];
+
+        if (userName !== undefined) {
+            updateUserSql += `, userName = ?`;
+            params.push(userName);
+        }
+        if (coins !== undefined) {
+            updateUserSql += `, coins = ?`;
+            params.push(coins);
+        }
+        if (address !== undefined) {
+            updateUserSql += `, address = ?`;
+            params.push(address);
+        }
+        if (referral !== undefined) {
+            updateUserSql += `, referral = ?`;
+            params.push(referral);
+        }
+        if (currentEnergy !== undefined) {
+            updateUserSql += `, currentEnergy = ?`;
+            params.push(currentEnergy);
+        }
+        if (maxEnergy !== undefined) {
+            updateUserSql += `, maxEnergy = ?`;
+            params.push(maxEnergy);
+        }
+
+        updateUserSql += ` WHERE userId = ?`;
+        params.push(userId);
 
         try {
-            await this.db.execute(updateUserSql, [userName, coins, address, referral, updateDate, currentEnergy, maxEnergy, updateDate, userId]);
-            return "Success update";
+            await this.db.execute(updateUserSql, params);
+            const userController = new UserController(this.db)
+            const updatedUser = await userController.getUserFromIdSimply(userId);
+            if (!updatedUser) {
+                throw new Error('Failed to retrieve updated user');
+            }
+
+            return updatedUser;
         } catch (error) {
+            console.error('Error updating user:', error);
             throw new Error(`Failed to update user: ${error}`);
         }
     }
@@ -112,13 +142,16 @@ class AdminsController {
         const deleteUserBoostsSql = `DELETE FROM userBoosts WHERE userId = ?`;
         const deleteUserInvitationsSql = `DELETE FROM user_invitations WHERE inviter_id = ? OR invitee_id = ?`;
         const deleteUserTasksSql = `DELETE FROM userTasks WHERE userId = ?`;
-
+        const deleteUserUserLeagueTable = `DELETE FROM UserLeague WHERE userId = ?`;
+        const deleteUserFromAcquisitions =`DELETE FROM acquisitions WHERE userId = ?`;
         try {
             await this.db.execute(deleteCompletedTasksSql, [userId]);
             await this.db.execute(deleteUserBoostsSql, [userId]);
             await this.db.execute(deleteUserInvitationsSql, [userId, userId]);
             await this.db.execute(deleteUserTasksSql, [userId]);
             await this.db.execute(deleteUserSql, [userId]);
+            await this.db.execute(deleteUserUserLeagueTable, [userId])
+            await this.db.execute(deleteUserFromAcquisitions, [userId])
 
             return "Success delete";
         } catch (error) {

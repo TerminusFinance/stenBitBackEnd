@@ -1,19 +1,11 @@
 import mysql, { Connection } from 'mysql2/promise';
 
-import {isUserSubscribed, sendToCheckUserHaveNftFromCollections} from "../tonWork/CheckToNftitem";
 import {
-    Boost, CompletedTask, Invitations, InvitedUser, ISCheckFriends,
-    IsCheckNftTask, ISDailyTask, IsOpenUrl, IsStockReg,
-    IsSubscribeToTg, Task,
     TaskCardProps,
     TaskType,
     User,
-    UserBoost,
-    UserTask, UserTaskFormated
+    UserTask,
 } from "../types/Types";
-import clanController from "./clanController";
-import {FieldPacket} from "mysql2";
-import PremiumController from "./premiumController";
 import UserService from "../service/UserService";
 import TaskService from "../service/TaskService";
 
@@ -54,17 +46,15 @@ class UserController {
         return this.userService.updateUser(userId, updatedData);
     }
 
-    async processInvitation(inviteCode: string, newUserId: string, newUserName: string): Promise<User> {
-        return this.userService.processInvitation(inviteCode, newUserId, newUserName);
+    async processInvitation(inviteCode: string, newUserId: string, newUserName: string, isPremium: boolean): Promise<User> {
+        return this.userService.processInvitation(inviteCode, newUserId, newUserName, isPremium);
     }
 
     async updateBoost(userId: string, boostName: string): Promise<{ user: User; boostEndTime?: string } | undefined> {
         return this.userService.updateBoost(userId, boostName);
     }
 
-
     // task operation
-
 
     async addTaskToAllUsers(text: string, coins: number, checkIcon: string, taskType: TaskType, type: string, actionBtnTx: string | null = null, txDescription: string | null = null): Promise<TaskCardProps> {
         return this.taskService.addTaskToAllUsers(text, coins, checkIcon, taskType, type, actionBtnTx, txDescription);

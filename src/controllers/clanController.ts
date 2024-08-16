@@ -1,4 +1,7 @@
 import { Connection, RowDataPacket, FieldPacket } from 'mysql2/promise';
+import AcquisitionsController from "./acquisitionsController";
+import {LabeledPrice} from "node-telegram-bot-api";
+import {SubscriptionOptions} from "./premiumController";
 
 interface Level {
     minProgress: number;
@@ -11,6 +14,7 @@ interface Clan {
     description: string;
     rating: number;
     createAt: string;
+    Urlchanel: string | null;
 }
 
 class ClanController {
@@ -34,7 +38,7 @@ class ClanController {
 
     async getUserClan(userId: string): Promise<{ message: string, clan?: Clan, role?: string, contributedRating?: number }> {
         const userClanSql = `
-            SELECT c.clanId, c.clanName, c.description, c.rating, c.createAt, uc.role, uc.contributedRating
+            SELECT c.clanId, c.clanName, c.description, c.rating, c.createAt, c.Urlchanel, uc.role, uc.contributedRating
             FROM userClans uc
             JOIN clans c ON uc.clanId = c.clanId
             WHERE uc.userId = ?
@@ -44,8 +48,8 @@ class ClanController {
         const userClan = rows[0] as any; // Cast as needed
 
         if (userClan) {
-            const { clanId, clanName, description, rating, createAt, role, contributedRating } = userClan;
-            const clan: Clan = { clanId, clanName, description, rating, createAt };
+            const { clanId, clanName, description, rating, createAt, Urlchanel, role, contributedRating } = userClan;
+            const clan: Clan = { clanId, clanName, description, rating, createAt, Urlchanel };
             return { message: 'User is in a clan', clan, role, contributedRating };
         } else {
             return { message: 'User is not in a clan' };
@@ -56,7 +60,7 @@ class ClanController {
         return dateString.replace('T', ' ').substring(0, 19);
     }
 
-    async createClan(clanName: string, description: string, userId: string): Promise<string> {
+    async createClan(clanName: string, description: string, userId: string, urlChannel?: string): Promise<string> {
         const clanCreationCost = 250000;
         try {
             // Проверка, есть ли пользователь уже в клане
@@ -84,11 +88,12 @@ class ClanController {
             const formattedCreateAt = this.formatDateToMySQL(createAt);
             const clanId = this.generateUniqueCodeToCreateClan();
 
+            // Вставка данных клана с учетом наличия urlChannel
             const createClanSql = `
-            INSERT INTO clans (clanId, clanName, description, rating, createAt)
-            VALUES (?, ?, ?, 0, ?)
+            INSERT INTO clans (clanId, clanName, description, rating, createAt, Urlchanel)
+            VALUES (?, ?, ?, 0, ?, ?)
         `;
-            await this.db.execute(createClanSql, [clanId, clanName, description, formattedCreateAt]);
+            await this.db.execute(createClanSql, [clanId, clanName, description, formattedCreateAt, urlChannel || null]);
 
             // Добавление пользователя в клан как создателя
             const addUserToClanSql = `
@@ -104,13 +109,15 @@ class ClanController {
         }
     }
 
+
     async getClanWithUsers(clanId: string): Promise<{ clan: Clan; users: { userId: string, userName: string, role: string, joinDate: string }[] }> {
         try {
+            // Обновляем SQL-запрос для получения клана с учетом поля Urlchanel
             const clanSql = `
-                SELECT clanId, clanName, description, rating, createAt
-                FROM clans
-                WHERE clanId = ?
-            `;
+            SELECT clanId, clanName, description, rating, createAt, Urlchanel
+            FROM clans
+            WHERE clanId = ?
+        `;
             const [clanRows]: [RowDataPacket[], FieldPacket[]] = await this.db.execute(clanSql, [clanId]);
             const clan = clanRows[0] as Clan;
 
@@ -118,12 +125,13 @@ class ClanController {
                 throw new Error(`Clan with clanId ${clanId} not found`);
             }
 
+            // Запрос на получение пользователей клана
             const usersSql = `
-                SELECT uc.userId, u.userName, uc.role, uc.joinDate
-                FROM userClans uc
-                         JOIN users u ON uc.userId = u.userId
-                WHERE uc.clanId = ?
-            `;
+            SELECT uc.userId, u.userName, uc.role, uc.joinDate
+            FROM userClans uc
+            JOIN users u ON uc.userId = u.userId
+            WHERE uc.clanId = ?
+        `;
             const [userRows]: [RowDataPacket[], FieldPacket[]] = await this.db.execute(usersSql, [clanId]);
 
             const users = userRows.map((user: any) => ({
@@ -133,12 +141,14 @@ class ClanController {
                 joinDate: user.joinDate
             }));
 
+            // Возвращаем данные клана и пользователей
             return { clan, users };
         } catch (error) {
             console.error('Error getting clan with users:', error);
             throw error;
         }
     }
+
 
     async addUserToClan(userId: string, clanId: string, role: string = 'simple'): Promise<string> {
         try {
@@ -198,8 +208,12 @@ class ClanController {
         }
     }
 
-    async increaseClanRating(userId: string, ratingIncrease: number): Promise<void> {
+    async increaseClanRating(userId: string, ratingIncrease: number, idBuying: "upClan_1000" | "upClan_5000" |"upClan_10000"|"upClan_25000" |"upClan_50000"): Promise<void> {
         try {
+
+            const valueAfterUnderscore = parseInt(idBuying.split('_')[1], 10);
+            const newAddedRating = valueAfterUnderscore;
+
             const userClanSql = `SELECT clanId, contributedRating FROM userClans WHERE userId = ?`;
             const [userClanRows]: [RowDataPacket[], FieldPacket[]] = await this.db.execute(userClanSql, [userId]);
             const userClan = userClanRows[0] as any;
@@ -211,9 +225,9 @@ class ClanController {
             const { clanId, contributedRating } = userClan;
 
             const updateClanRatingSql = `UPDATE clans SET rating = rating + ? WHERE clanId = ?`;
-            await this.db.execute(updateClanRatingSql, [ratingIncrease, clanId]);
+            await this.db.execute(updateClanRatingSql, [newAddedRating, clanId]);
 
-            const newContributedRating = contributedRating + ratingIncrease;
+            const newContributedRating = contributedRating + newAddedRating;
             const updateUserClanSql = `UPDATE userClans SET contributedRating = ? WHERE userId = ? AND clanId = ?`;
             await this.db.execute(updateUserClanSql, [newContributedRating, userId, clanId]);
         } catch (error) {
@@ -236,7 +250,8 @@ class ClanController {
                 clanName: row.clanName,
                 description: row.description,
                 rating: row.rating,
-                createAt: row.createAt
+                createAt: row.createAt,
+                Urlchanel: row.Urlchanel
             }));
 
             const clansByLevels: Clan[][] = levels.map(() => []);
@@ -294,6 +309,32 @@ class ClanController {
             console.error('Error leaving clan:', error);
             throw error;
         }
+    }
+
+
+    async boostClan(chat_id: string, selectedSubscriptionOptions: SubscriptionOptions) {
+        let resultAmount: number;
+
+        // if (![1000, 5000, 10000, 25000, 50000].includes(selectedSubscriptionOptions.price)) {
+        //     throw new Error('This service does not exist');
+        // }
+
+        resultAmount = selectedSubscriptionOptions.price;
+
+        const currentLabeledPrice: LabeledPrice[] = [{
+            label: `upClan_${selectedSubscriptionOptions.name}`,
+            amount: resultAmount
+        }];
+
+        const title = `Upp clan rating ${selectedSubscriptionOptions.name}`;
+        const description = 'Upp clan rating to terminus app';
+        const currency = 'XTR';
+        const payload = 'Payload info';
+
+        const acquisitionsController = new AcquisitionsController(this.db)
+        const resultPayment = await acquisitionsController.sendPayment(chat_id, title, description, payload, currency, currentLabeledPrice, `upClan_${selectedSubscriptionOptions.price}`);
+        console.log('resultPayment - ', resultPayment);
+        return resultPayment;
     }
 
 }

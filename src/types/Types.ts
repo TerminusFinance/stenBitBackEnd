@@ -1,5 +1,6 @@
 import {FieldPacket, RowDataPacket} from "mysql2";
 import mysql from "mysql2/promise";
+import taskService from "../service/TaskService";
 
 /**
  * This user class, here returned from request users
@@ -126,6 +127,11 @@ export interface StockRegTask {
     url: string;
 }
 
+export interface CheckStarsSendersTask {
+    type: 'CheckStarsSenders';
+    unnecessaryWaste: number;
+}
+
 export interface CheckFriendsTask {
     type: 'CheckFriends';
     numberOfFriends: number;
@@ -137,14 +143,19 @@ export interface SubscribeToTgTask {
     id: string;
 }
 
-
 export interface InternalChallengeTask {
     type: 'InternalChallenge';
     nameChallenge: string;
 }
 
+export interface TransferToneTask {
+    type: 'TransferTone';
+    price: number;
+    addressToTransfer: string;
+    rewardType: string;
+}
 
-export type TaskType = SampleTask | OpenUrlTask | CheckNftTask | CheckFriendsTask | SubscribeToTgTask | StockRegTask | DailyTask | InternalChallengeTask;
+export type TaskType = SampleTask | OpenUrlTask | CheckNftTask | CheckFriendsTask | SubscribeToTgTask | StockRegTask | DailyTask | InternalChallengeTask | TransferToneTask | CheckStarsSendersTask;
 
 export const ISDailyTask = (taskType: TaskType): taskType is DailyTask => {
     return taskType.type === 'Daily';
@@ -173,6 +184,14 @@ export const ISCheckFriends = (taskType: TaskType): taskType is CheckFriendsTask
 export const IsInternalChallengeTask =  (taskType: TaskType): taskType is InternalChallengeTask => {
     return taskType.type === 'InternalChallenge';
 };
+
+export const IsTransferToneTask = (taskType: TaskType): taskType is TransferToneTask => {
+    return taskType.type === 'TransferTone';
+}
+
+export const IsCheckStarsSendersTask = (taskType: TaskType): taskType is CheckStarsSendersTask => {
+    return taskType.type === 'CheckStarsSenders';
+}
 
 export interface Boost {
     boostName: string;

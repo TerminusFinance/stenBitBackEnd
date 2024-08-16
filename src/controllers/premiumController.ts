@@ -2,6 +2,7 @@ import { Connection } from 'mysql2/promise';
 import axios from 'axios';
 import { botToken } from '../../config';
 import ClanController from './clanController';
+import AcquisitionsController from "./acquisitionsController";
 
 /**
  *  types
@@ -11,7 +12,7 @@ interface LabeledPrice {
     amount: number;
 }
 
-interface SubscriptionOptions {
+export interface SubscriptionOptions {
     name: string;
     price: number;
 }
@@ -38,21 +39,21 @@ class PremiumController {
         const course = 0.021;
         let resultAmount: number;
 
-        const directAmounts = [7, 1000, 5000, 10000, 25000, 50000];
+        // const directAmounts = [7, 1000, 5000, 10000, 25000, 50000];
 
         if (![7, 12, 25, 1000, 5000, 10000, 25000, 50000].includes(selectedSubscriptionOptions.price)) {
             throw new Error('This service does not exist');
         }
 
-        if (directAmounts.includes(selectedSubscriptionOptions.price)) {
-            resultAmount = selectedSubscriptionOptions.price;
-        } else {
+        // if (directAmounts.includes(selectedSubscriptionOptions.price)) {
+        //     resultAmount = selectedSubscriptionOptions.price;
+        // } else {
             // Рассчитываем значение по курсу для остальных
             resultAmount = Math.round(selectedSubscriptionOptions.price / course);
-        }
+        // }
 
         const currentLabeledPrice: LabeledPrice[] = [{
-            label: `Premium to ${selectedSubscriptionOptions.name}`,
+            label: `prem_${selectedSubscriptionOptions.name}`,
             amount: resultAmount
         }];
 
@@ -61,52 +62,15 @@ class PremiumController {
         const currency = 'XTR';
         const payload = 'Payload info';
 
-        const resultPayment = await this.sendPayment(chat_id, title, description, payload, currency, currentLabeledPrice);
+        const acquisitionsController = new AcquisitionsController(this.db)
+        const resultPayment = await acquisitionsController.sendPayment(chat_id, title, description, payload, currency, currentLabeledPrice, `prem_${selectedSubscriptionOptions.price}`);
         console.log('resultPayment - ', resultPayment);
         return resultPayment;
     }
 
 
-    async sendPayment(chat_id: string, title: string, description: string, payload: string, currency: string, prices: LabeledPrice[]) {
-        const url = `https://api.telegram.org/bot${botToken}/createInvoiceLink`;
+    async updateSubscription(userId: string, days: number, amountSpent: number, idBuying: "prem_7" | "prem_12" |"prem_25"): Promise<void> {
 
-        const data = {
-            chat_id: chat_id,
-            title: title,
-            description: description,
-            payload: payload,
-            currency: currency,
-            prices: prices
-        };
-
-        try {
-            const response = await axios.post(url, data);
-            return response.data;
-        } catch (error) {
-            console.error('Error:', error);
-            throw error;
-        }
-    }
-
-    async subscriptionProcessing(providerPaymentChargeId: string, totalAmount: number) {
-        const id = providerPaymentChargeId.split('_')[0];
-
-        const clanController = new ClanController(this.db);
-
-        if (totalAmount === 1190) {
-            await this.updateSubscription(id, 31, totalAmount);
-        } else if (totalAmount === 571) {
-            await this.updateSubscription(id, 14, totalAmount);
-        } else if ([1000, 5000, 10000, 25000, 50000].includes(totalAmount)) {
-            await clanController.increaseClanRating(id, totalAmount);
-        } else if (totalAmount === 7) {
-            await this.updateSubscription(id, 7, totalAmount);
-        }
-
-        return true;
-    }
-
-    async updateSubscription(userId: string, days: number, amountSpent: number): Promise<void> {
         const currentDate = new Date();
 
         const selectEndDateSql = 'SELECT endDateOfWork FROM premium WHERE userId = ?';
@@ -159,6 +123,7 @@ class PremiumController {
             throw error;
         }
     }
+
 }
 
 export default PremiumController;

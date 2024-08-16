@@ -1,22 +1,26 @@
 import mysql, {Connection} from "mysql2/promise";
 import {
     ISCheckFriends,
-    IsCheckNftTask,
+    IsCheckNftTask, IsCheckStarsSendersTask,
     ISDailyTask, IsInternalChallengeTask,
     IsOpenUrl,
     IsStockReg,
-    IsSubscribeToTg, Task, TaskCardProps, TaskType, User, UserTask,
+    IsSubscribeToTg, IsTransferToneTask, Task, TaskCardProps, TaskType, User, UserTask,
     UserTaskFormated
 } from "../types/Types";
-import {isUserSubscribed, sendToCheckUserHaveNftFromCollections} from "../tonWork/CheckToNftitem";
+import {CheckTransactions, isUserSubscribed, sendToCheckUserHaveNftFromCollections} from "../tonWork/CheckToNftitem";
 import UserService from "./UserService";
 import ClanController from "../controllers/clanController";
+import {toNano} from "ton-core";
+import UserLeagueController from "../controllers/userLeagueController";
+import AcquisitionsController from "../controllers/acquisitionsController";
 
 
 class TaskService {
     private userService!: UserService;
 
-    constructor(private db: Connection) {}
+    constructor(private db: Connection) {
+    }
 
     setUserService(userService: UserService) {
         this.userService = userService;
@@ -24,15 +28,15 @@ class TaskService {
 
     async checkAndUpdateTasksForUser(userId: string) {
         const userTasksSql = `
-        SELECT t.id AS taskId,
-               t.taskType,
-               ut.etaps,
-               ut.lastCompletedDate,
-               ut.completed
-        FROM tasks t
-                 JOIN userTasks ut ON t.id = ut.taskId
-        WHERE ut.userId = ?
-    `;
+            SELECT t.id AS taskId,
+                   t.taskType,
+                   ut.etaps,
+                   ut.lastCompletedDate,
+                   ut.completed
+            FROM tasks t
+                     JOIN userTasks ut ON t.id = ut.taskId
+            WHERE ut.userId = ?
+        `;
         const [rowUserTasks] = await this.db.execute(userTasksSql, [userId]);
         let userTasks = rowUserTasks as UserTaskFormated[];
 
@@ -64,13 +68,13 @@ class TaskService {
                     console.log('Обновляем ежедневное задание');
                     taskWithParsedType.completed = false;
                     const updateTaskSql = `
-                    UPDATE userTasks
-                    SET completed = ?
-                    WHERE userId = ?
-                        AND taskId = ?
-                `;
+                        UPDATE userTasks
+                        SET completed = ?
+                        WHERE userId = ?
+                          AND taskId = ?
+                    `;
                     await this.db.execute(updateTaskSql, [0, userId, task.taskId]);
-                }  else {
+                } else {
                     console.log("ignor")
                 }
             }
@@ -165,6 +169,34 @@ class TaskService {
                         } catch (e) {
                             return e;
                         }
+                    } else if (IsTransferToneTask(userTask.taskType)) {
+                        try {
+                            console.error("IsInternalChallengeTask voshol")
+                            const resultCheck = await this.checkTransOptions(user, userTask);
+                            console.error("IsInternalChallengeTask resultCheck -", resultCheck)
+                            if (resultCheck === "Task completion status updated successfully") {
+                                const newUserState = await this.userService.getUserFromIdSimply(userId);
+                                return newUserState;
+                            } else {
+                                return resultCheck;
+                            }
+                        } catch (e) {
+                            return e;
+                        }
+                    } else if(IsCheckStarsSendersTask(userTask.taskType)) {
+                        try {
+                            console.error("IsInternalChallengeTask voshol")
+                            const resultCheck = await this.checkStarsSenders(user, userTask);
+                            console.error("IsInternalChallengeTask resultCheck -", resultCheck)
+                            if (resultCheck === "Task completion status updated successfully") {
+                                const newUserState = await this.userService.getUserFromIdSimply(userId);
+                                return newUserState;
+                            } else {
+                                return resultCheck;
+                            }
+                        } catch (e) {
+                            return e;
+                        }
                     }
                 } else {
                     return "User task not found";
@@ -175,26 +207,71 @@ class TaskService {
     }
 
 
+    async checkStarsSenders(user: User, selectedTask: UserTask) {
+        if(IsCheckStarsSendersTask(selectedTask.taskType)) {
+            const acquisitionsController = new AcquisitionsController(this.db)
+            const result = await acquisitionsController.getAcquisitions(user.userId)
+            if(result) {
+                if(selectedTask.taskType.unnecessaryWaste <=result.totalAmount) {
+                    await this.updateTaskCompletion(user.userId, selectedTask.taskId, true);
+                    return "Task completion status updated successfully";
+                } else {
+                    return "Less than the task";
+                }
+            } else {
+                return "Less than the task";
+            }
+        }
+    }
+
+
+    async checkTransOptions(user: User, selectedTask: UserTask) {
+        if (IsTransferToneTask(selectedTask.taskType)) {
+            if (user.address != undefined && user.address !== "") {
+                try {
+                    const resultChecking = await CheckTransactions(user.address, toNano(selectedTask.taskType.price), selectedTask.taskType.addressToTransfer)
+                    if (resultChecking == true) {
+                        switch (selectedTask.taskType.rewardType) {
+                            case "coin":
+                                await this.updateTaskCompletion(user.userId, selectedTask.taskId, true);
+                                break;
+                            case "userLeague":
+                                const userLeagueController = new UserLeagueController(this.db)
+                                await userLeagueController.updateUserLeagueScore(user.userId, selectedTask.coins, "freescore");
+                                await this.updateTaskCompletion(user.userId, selectedTask.taskId, true, false);
+                                break;
+                        }
+                        return "Task completion status updated successfully"
+                    } else {
+                        return resultChecking
+                    }
+                } catch (e) {
+                    return e
+                }
+            }
+        }
+    }
+
     async checkInternalChallenge(user: User, selectedTask: UserTask) {
-        if(IsInternalChallengeTask(selectedTask.taskType)) {
+        if (IsInternalChallengeTask(selectedTask.taskType)) {
 
             switch (selectedTask.taskType.nameChallenge) {
                 case "walletAddress" :
-                        if(user.address != undefined && user.address != "") {
-                            await this.updateTaskCompletion(user.userId, selectedTask.taskId, true);
-                            return "Task completion status updated successfully";
-                        } else  {
-                            return "You didn't link the address"
-                        }
+                    if (user.address != undefined && user.address != "") {
+                        await this.updateTaskCompletion(user.userId, selectedTask.taskId, true);
+                        return "Task completion status updated successfully";
+                    } else {
+                        return "You didn't link the address"
+                    }
                 case "createClan" :
-                        const controller = new ClanController(this.db)
-                        const userClanResult = await controller.getUserClan(user.userId)
-                        if(userClanResult.role != undefined && userClanResult.role == "creator") {
-                            await this.updateTaskCompletion(user.userId, selectedTask.taskId, true);
-                            return "Task completion status updated successfully";
-                        } else {
-                            return "You have not created a clan"
-                        }
+                    const controller = new ClanController(this.db)
+                    const userClanResult = await controller.getUserClan(user.userId)
+                    if (userClanResult.role != undefined && userClanResult.role == "creator") {
+                        await this.updateTaskCompletion(user.userId, selectedTask.taskId, true);
+                        return "Task completion status updated successfully";
+                    } else {
+                        return "You have not created a clan"
+                    }
             }
             return "Task named is not supported"
         } else {
@@ -225,19 +302,18 @@ class TaskService {
     }
 
 
-
-    async checkFriendsAction (user: User, selectedTask: UserTask) {
-        if(ISCheckFriends(selectedTask.taskType)) {
-            if(user.listUserInvited != undefined) {
+    async checkFriendsAction(user: User, selectedTask: UserTask) {
+        if (ISCheckFriends(selectedTask.taskType)) {
+            if (user.listUserInvited != undefined) {
                 console.error("checkFriendsAction ser.listUserInvited-", user.listUserInvited)
-                if(user.listUserInvited.length >= selectedTask.taskType.numberOfFriends) {
+                if (user.listUserInvited.length >= selectedTask.taskType.numberOfFriends) {
                     const resultSendTorequest = await this.updateTaskCompletion(user.userId, selectedTask.taskId, true)
                     resultSendTorequest
                     return "Task completion status updated successfully";
-                } else  {
+                } else {
                     return "An error occurred while have invited friends";
                 }
-            } else  {
+            } else {
                 console.error("checkFriendsAction ser.listUserInvited-", user.listUserInvited)
                 return "An error occurred while have invited friends";
             }
@@ -292,17 +368,17 @@ class TaskService {
     };
 
 // протестить завтра
-    async  checkStockReg(user: User, selectedTask: UserTask) {
+    async checkStockReg(user: User, selectedTask: UserTask) {
         if (IsStockReg(selectedTask.taskType)) {
             const currentDate = new Date();
 
             // Получение данных задачи пользователя
             const userTaskSql = `
-            SELECT *
-            FROM userTasks
-            WHERE userId = ?
-              AND taskId = ?
-        `;
+                SELECT *
+                FROM userTasks
+                WHERE userId = ?
+                  AND taskId = ?
+            `;
 
             const [userTaskRows] = await this.db.execute<mysql.RowDataPacket[]>(userTaskSql, [user.userId, selectedTask.taskId]);
             const userTask = userTaskRows[0] as UserTaskFormated | undefined;
@@ -311,7 +387,7 @@ class TaskService {
                 throw new Error('Task not found for the user.');
             }
 
-            let { etaps, dataSendCheck } = userTask;
+            let {etaps, dataSendCheck} = userTask;
 
             // Если etaps или dataSendCheck равны null, считаем, что задача не начата
             if (etaps === null || dataSendCheck === null) {
@@ -337,7 +413,7 @@ class TaskService {
                     if (currentDate > nextDay) {
                         // Перевод на этап 2
                         console.error("перевод на newDay");
-                        await this.updateUserTask(user.userId, selectedTask.taskId, { etaps: 2 });
+                        await this.updateUserTask(user.userId, selectedTask.taskId, {etaps: 2});
                         return "Task completion status updated successfully";
                     } else {
                         console.error("less than 24 hours have passed since the last update.");
@@ -386,11 +462,11 @@ class TaskService {
 
             // Получение данных задачи пользователя
             const userTaskSql = `
-            SELECT *
-            FROM userTasks
-            WHERE userId = ?
-              AND taskId = ?
-        `;
+                SELECT *
+                FROM userTasks
+                WHERE userId = ?
+                  AND taskId = ?
+            `;
 
             const [userTaskRows] = await this.db.execute<mysql.RowDataPacket[]>(userTaskSql, [user.userId, selectedTask.taskId]);
             const userTask = userTaskRows[0] as UserTaskFormated | undefined;
@@ -399,7 +475,7 @@ class TaskService {
                 throw new Error('Task not found for the user.');
             }
 
-            let { etaps, dataSendCheck } = userTask;
+            let {etaps, dataSendCheck} = userTask;
 
             // Если etaps или dataSendCheck равны null, считаем, что задача не начата
             if (etaps === null || dataSendCheck === null) {
@@ -453,21 +529,20 @@ class TaskService {
     }
 
 
-
-    async updateTaskCompletion(userId: string, taskId: number, completed: boolean): Promise<void> {
+    async updateTaskCompletion(userId: string, taskId: number, completed: boolean, addedUserCoins: boolean = true): Promise<void> {
         const updateTaskSql = `
-        UPDATE userTasks
-        SET completed = ?,
-            lastCompletedDate = ?
-        WHERE userId = ?
-          AND taskId = ?
-    `;
+            UPDATE userTasks
+            SET completed         = ?,
+                lastCompletedDate = ?
+            WHERE userId = ?
+              AND taskId = ?
+        `;
         const getTaskSql = `SELECT coins, type
-                        FROM tasks
-                        WHERE id = ?`;
+                            FROM tasks
+                            WHERE id = ?`;
         const updateUserCoinsSql = `UPDATE users
-                                SET coins = coins + ?
-                                WHERE userId = ?`;
+                                    SET coins = coins + ?
+                                    WHERE userId = ?`;
 
         const today = new Date().toISOString().split('T')[0];
         const completedDate = completed ? today : null;
@@ -489,14 +564,15 @@ class TaskService {
 
             if (completed) {
                 // Update user's coins
-                await this.db.execute(updateUserCoinsSql, [task.coins, userId]);
+                if(addedUserCoins) {
+                    await this.db.execute(updateUserCoinsSql, [task.coins, userId]);
+                }
             }
         } catch (error) {
             console.error('Error updating task completion:', error);
             throw new Error(`Failed to update task completion: ${error}`);
         }
     }
-
 
 
     async deleteTask(taskId: number): Promise<void> {
@@ -512,12 +588,10 @@ class TaskService {
     }
 
 
-
-
     async getTaskById(taskId: number): Promise<TaskCardProps | undefined> {
         const taskSql = `SELECT *
-                     FROM tasks
-                     WHERE id = ?`;
+                         FROM tasks
+                         WHERE id = ?`;
 
         try {
             const [rows] = await this.db.execute<mysql.RowDataPacket[]>(taskSql, [taskId]);
@@ -553,12 +627,12 @@ class TaskService {
         const values = Object.values(updatedFields);
 
         const updateTaskSql = `UPDATE tasks
-                           SET ${fieldsToUpdate}
-                           WHERE id = ?`;
+                               SET ${fieldsToUpdate}
+                               WHERE id = ?`;
 
         const updateUserTasksSql = `UPDATE userTasks
-                                SET ${fieldsToUpdate}
-                                WHERE taskId = ?`;
+                                    SET ${fieldsToUpdate}
+                                    WHERE taskId = ?`;
 
         try {
             await this.db.execute(updateTaskSql, [...values, taskId]);
@@ -587,7 +661,7 @@ class TaskService {
 
         // const tasks = await this.db.all<Task>(tasksSql);
 
-        if(tasks) {
+        if (tasks) {
             return tasks.map(task => ({
                 id: task.id,
                 text: task.text,
@@ -606,9 +680,9 @@ class TaskService {
 
     async addTaskToAllUsers(text: string, coins: number, checkIcon: string, taskType: TaskType, type: string, actionBtnTx: string | null = null, txDescription: string | null = null): Promise<TaskCardProps> {
         const insertTaskSql = `
-        INSERT INTO tasks (text, coins, checkIcon, taskType, type, actionBtnTx, txDescription)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    `;
+            INSERT INTO tasks (text, coins, checkIcon, taskType, type, actionBtnTx, txDescription)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        `;
 
         const [result] = await this.db.execute<mysql.OkPacket>(insertTaskSql, [text, coins, checkIcon, JSON.stringify(taskType), type, actionBtnTx, txDescription]);
         const newTaskId = result.insertId;
@@ -617,12 +691,13 @@ class TaskService {
             throw new Error('Failed to create new task');
         }
 
-        const allUsersSql = `SELECT userId FROM users`;
+        const allUsersSql = `SELECT userId
+                             FROM users`;
         const [allUsersResult] = await this.db.execute<mysql.RowDataPacket[]>(allUsersSql);
         const allUsers = allUsersResult as { userId: string }[];
 
         const insertUserTaskSql = `INSERT INTO userTasks (userId, taskId, completed)
-                               VALUES (?, ?, ?)`;
+                                   VALUES (?, ?, ?)`;
 
         for (const user of allUsers) {
             await this.db.execute(insertUserTaskSql, [user.userId, newTaskId, false]);

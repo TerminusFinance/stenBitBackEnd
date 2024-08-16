@@ -43,6 +43,26 @@ function userRouter(userController: UserController) {
         }
     });
 
+
+    router.get('/getUserSimple', authMiddleware, async (req: Request, res: Response) => {
+
+        try {
+            const initData = res.locals.initData as InitDataParsed;
+            const id = initData.user?.id
+            if (id != undefined) {
+                const user = await userController.getUserFromIdSimply(id.toString());
+                if (!user) {
+                    res.status(404).json({message: 'User not found'});
+                } else {
+                    res.status(200).json(user);
+                }
+            }
+        } catch (error) {
+            console.error('Ошибка при обновлении буста:', error);
+            res.status(400).json({message: error});
+        }
+    });
+
     router.put('/updateUsers', authMiddleware, async (req: Request, res: Response) => {
         try {
             const initData = res.locals.initData as InitDataParsed;
@@ -79,8 +99,9 @@ function userRouter(userController: UserController) {
             const initData = res.locals.initData as InitDataParsed;
             const userId = initData.user?.id
             const name = initData.user?.firstName
+            const prem = initData.user?.isPremium
             if (userId != undefined && name != undefined) {
-                const user = await userController.processInvitation(inviteCode, userId.toString(), name);
+                const user = await userController.processInvitation(inviteCode, userId.toString(), name, prem ? prem : false);
                 res.status(201).json(user);
             }
         } catch (error) {
