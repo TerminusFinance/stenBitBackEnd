@@ -125,15 +125,17 @@ class UserService {
         }
 
         const userSql = `
-        SELECT u.*,
-               p.endDateOfWork,
-               ub.level AS turboLevel,
-               ub.lastTurboBoostUpgrade
-        FROM users u
-        LEFT JOIN premium p ON u.userId = p.userId
-        LEFT JOIN userBoosts ub ON u.userId = ub.userId AND ub.boostName = 'turbo'
-        WHERE u.userId = ?
-    `;
+    SELECT u.*,
+           p.endDateOfWork,
+           ub.level AS turboLevel,
+           ub.lastTurboBoostUpgrade,
+           elb.level AS energyLimitLevel
+    FROM users u
+    LEFT JOIN premium p ON u.userId = p.userId
+    LEFT JOIN userBoosts ub ON u.userId = ub.userId AND ub.boostName = 'turbo'
+    LEFT JOIN userBoosts elb ON u.userId = elb.userId AND elb.boostName = 'multitap'
+    WHERE u.userId = ?
+`;
         const [rows] = await this.db.execute(userSql, [userId]);
 
         const user = (rows as any[])[0];
@@ -170,10 +172,12 @@ class UserService {
         const isTurboBoostActive = user.lastTurboBoostUpgrade &&
             new Date(user.lastTurboBoostUpgrade).getTime() + 60000 > currentTime.getTime();
 
+        console.log("user.energyLimitLevel - ", user.energyLimitLevel)
         const maxCoinsChanged = isTurboBoostActive
-            ? 1600 * 2 * user.turboLevel
-            : user.currentEnergy * 2;
-
+            ? 3000 * 2 * user.energyLimitLevel
+            : user.currentEnergy * (user.energyLimitLevel || 1);  // Используем energyLimitLevel, если он существует
+        console.log("maxCoinsChanged - ", maxCoinsChanged)
+        console.log("coin to add - ", coins)
         // Если турбобуст не активен, проверяем и списываем энергию
         if (!isTurboBoostActive) {
             if (coins > maxCoinsChanged) {
@@ -213,10 +217,10 @@ class UserService {
                     await this.db.execute(updateInviterCoinsSql, [additionalCoins, inviter.userId]);
 
                     const updateInvitationSql = `
-                    INSERT INTO user_invitations (inviter_id, invitee_id, coinsReferral)
-                    VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE
-                        coinsReferral = coinsReferral + VALUES(coinsReferral)
-                `;
+                INSERT INTO user_invitations (inviter_id, invitee_id, coinsReferral)
+                VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE
+                    coinsReferral = coinsReferral + VALUES(coinsReferral)
+            `;
                     await this.db.execute(updateInvitationSql, [inviter.userId, userId, additionalCoins]);
                 }
             }
@@ -224,6 +228,8 @@ class UserService {
 
         return { newEnergy: user.currentEnergy, coins: newCoins };
     }
+
+
 
 
     async getUserFromId(userId: string, imageAvatar: string | null): Promise<User | undefined> {

@@ -32,7 +32,8 @@ class TaskService {
                    t.taskType,
                    ut.etaps,
                    ut.lastCompletedDate,
-                   ut.completed
+                   ut.completed,
+                t.type
             FROM tasks t
                      JOIN userTasks ut ON t.id = ut.taskId
             WHERE ut.userId = ?
@@ -54,10 +55,9 @@ class TaskService {
                 ...task,
                 taskType: parsedTaskType
             };
-
             if (task.etaps == 1 || task.etaps == 3) {
                 await this.checkSuccessTask(userId, task.taskId);
-            } else if (ISDailyTask(taskWithParsedType.taskType)) {
+            } else if (taskWithParsedType.type == "DailyTask") {
                 console.log("parsedTaskType - ", parsedTaskType)
                 const lastDateUpdate = taskWithParsedType.lastCompletedDate
                 const currentDate = new Date().toISOString().split('T')[0];
@@ -211,6 +211,7 @@ class TaskService {
         if(IsCheckStarsSendersTask(selectedTask.taskType)) {
             const acquisitionsController = new AcquisitionsController(this.db)
             const result = await acquisitionsController.getAcquisitions(user.userId)
+            console.log("result",result)
             if(result) {
                 if(selectedTask.taskType.unnecessaryWaste <=result.totalAmount) {
                     await this.updateTaskCompletion(user.userId, selectedTask.taskId, true);

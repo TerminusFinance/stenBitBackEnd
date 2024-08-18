@@ -10,6 +10,7 @@ export interface UserLeague {
     score: number;
     buyscore: number;
     freescore: number;
+    reward: number;
 }
 
 class UserLeagueController {
@@ -32,6 +33,7 @@ class UserLeagueController {
     async getAllUserLeagues(): Promise<UserLeague[]> {
         const query = 'SELECT * FROM UserLeague';
         const [rows] = await this.db.execute(query);
+        console.log("rows - ", rows)
         return rows as UserLeague[];
     }
 
@@ -123,6 +125,52 @@ class UserLeagueController {
         console.log('resultPayment - ', resultPayment);
         return resultPayment;
     }
+
+
+
+    public async distributeWeeklyRewards() {
+
+        try {
+
+            // Получаем топ-3 пользователей по очкам
+            const [topUsers] = await this.db.execute(`
+                SELECT userId, score 
+                FROM UserLeague 
+                ORDER BY score DESC 
+                LIMIT 3
+            `);
+
+            if ((topUsers as any[]).length === 0) {
+                console.log('No users to distribute rewards to.');
+                return;
+            }
+
+            // Определяем награды для каждого места
+            const rewards = [1000, 500, 250]; // Награды для 1-го, 2-го и 3-го мест
+
+            // Начисляем награды и сбрасываем очки
+            for (let i = 0; i < (topUsers as any[]).length; i++) {
+                const user = (topUsers as any[])[i];
+                const reward = rewards[i];
+
+                // Обновляем данные о награде в UserLeague
+                await this.db.execute(`
+                    UPDATE UserLeague
+                    SET reward = reward + ?
+                    WHERE userId = ?
+                `, [reward, user.userId]);
+            }
+
+            // Подтверждаем транзакцию
+            console.log('Rewards distributed successfully.');
+            return "Success Rewards"
+        } catch (error) {
+            console.error('Error distributing rewards:', error);
+            throw error;
+        }
+    }
+
+
 }
 
 export default UserLeagueController;

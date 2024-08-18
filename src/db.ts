@@ -199,6 +199,7 @@ async function createTables(db: Connection) {
             score INT DEFAULT 0,
             buyscore INT DEFAULT 0,
             freescore INT DEFAULT 0,
+            reward INT DEFAULT 0,
             FOREIGN KEY (userId) REFERENCES users(userId)
         );
     `;
@@ -275,13 +276,20 @@ async function addUrlChannelToClans(db: Connection) {
             ADD COLUMN Urlchanel VARCHAR(255) DEFAULT NULL;
         `;
 
+        const addreward = `
+                 ALTER TABLE UserLeague 
+            ADD COLUMN reward INT DEFAULT 0;
+        `
+
         // Выполнение запроса на добавление нового столбца
-        await db.execute(addUrlChannelQuery);
+        await db.execute(addreward);
+        // await db.execute(addUrlChannelQuery);
         console.log('Urlchanel column added to clans table successfully');
     } catch (error) {
             console.error('Failed to add Urlchanel column to clans table:', error);
     }
 }
+
 
 
 export default connectDatabase;

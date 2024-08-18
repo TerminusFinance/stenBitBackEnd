@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 
 export const getManifest = (req: Request, res: Response): void => {
     const manifest = {
-        url: "https://ton-connect.github.io/Terminus",
+        url: "Terminus.guru",
         name: "Terminus",
         iconUrl: "https://ton-connect.github.io/demo-dapp/apple-touch-icon.png",
         termsOfUseUrl: "https://ton-connect.github.io/demo-dapp/terms-of-use.txt",
@@ -19,3 +19,4 @@ export const getTermOfUse = (req: Request, res: Response): void => {
 
     res.json(manifest);
 }
+
