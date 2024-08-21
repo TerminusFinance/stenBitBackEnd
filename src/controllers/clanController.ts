@@ -239,7 +239,7 @@ class ClanController {
     async getClansByLeagueLevels(levels: Level[]): Promise<Clan[][]> {
         try {
             const allClansSql = `
-                SELECT clanId, clanName, description, rating, createAt
+                SELECT clanId, clanName, description, rating, createAt, Urlchanel
                 FROM clans
             `;
             const [allClansRows]: [RowDataPacket[], FieldPacket[]] = await this.db.execute(allClansSql);

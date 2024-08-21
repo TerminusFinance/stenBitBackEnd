@@ -127,6 +127,7 @@ async function createTables(db: Connection) {
             isLoading BOOLEAN DEFAULT 0,
             etTx VARCHAR(255) DEFAULT NULL,
             etaps INT DEFAULT 0,
+            storedValues VARCHAR(255) DEFAULT NULL,
             FOREIGN KEY (userId) REFERENCES users(userId),
             FOREIGN KEY (taskId) REFERENCES tasks(id),
             PRIMARY KEY (userId, taskId)
@@ -280,9 +281,15 @@ async function addUrlChannelToClans(db: Connection) {
                  ALTER TABLE UserLeague 
             ADD COLUMN reward INT DEFAULT 0;
         `
+        // added storedValues
+        const addStoredValueQuery = `
+            ALTER TABLE userTasks
+            ADD COLUMN storedValues VARCHAR(255) DEFAULT NULL;
+        `
 
         // Выполнение запроса на добавление нового столбца
-        await db.execute(addreward);
+        await db.execute(addStoredValueQuery);
+        // await db.execute(addreward);
         // await db.execute(addUrlChannelQuery);
         console.log('Urlchanel column added to clans table successfully');
     } catch (error) {

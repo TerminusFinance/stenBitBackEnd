@@ -38,13 +38,12 @@ export interface Boost {
     level: number;
     price: number;
 }
+
 export interface InvitedUser {
     userId: string;
     userName: string;
     coinsReferral: number;
 }
-
-type QueryResult<T> = [T[], FieldPacket[]];
 
 export interface UserTask {
     taskId: number;
@@ -61,6 +60,7 @@ export interface UserTask {
     etTx?: string| null;
     isLoading: boolean;
     dataSendCheck?: string | null;
+    storedValues? : string | null;
 }
 
 export interface UserTaskFormated {
@@ -78,6 +78,7 @@ export interface UserTaskFormated {
     etTx?: string| null;
     isLoading: boolean | number;
     dataSendCheck?: string | null;
+    storedValues? : string | null;
 }
 
 export interface Task {
@@ -155,7 +156,24 @@ export interface TransferToneTask {
     rewardType: string;
 }
 
-export type TaskType = SampleTask | OpenUrlTask | CheckNftTask | CheckFriendsTask | SubscribeToTgTask | StockRegTask | DailyTask | InternalChallengeTask | TransferToneTask | CheckStarsSendersTask;
+export interface DaysChallengeTask {
+    type : "DaysChallenge",
+    price: number;
+    addressToTransfer: string;
+    days: number;
+}
+
+export type TaskType = SampleTask 
+| OpenUrlTask 
+| CheckNftTask 
+| CheckFriendsTask 
+| SubscribeToTgTask 
+| StockRegTask 
+| DailyTask 
+| InternalChallengeTask 
+| TransferToneTask 
+| CheckStarsSendersTask 
+| DaysChallengeTask;
 
 export const ISDailyTask = (taskType: TaskType): taskType is DailyTask => {
     return taskType.type === 'Daily';
@@ -193,6 +211,10 @@ export const IsCheckStarsSendersTask = (taskType: TaskType): taskType is CheckSt
     return taskType.type === 'CheckStarsSenders';
 }
 
+export const IsDaysChallengeTask = (taskType: TaskType): taskType is DaysChallengeTask => {
+    return taskType.type === 'DaysChallenge';
+}
+
 export interface Boost {
     boostName: string;
     description: string;
@@ -209,4 +231,9 @@ export interface Invitations {
     inviter_id: string;
     invitee_id: string;
     coinsReferral: number;
+}
+
+export interface StoredValuesDayChallenge {
+    dayCompleted: number;
+    dateLastComplete: string;
 }

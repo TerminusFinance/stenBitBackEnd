@@ -3,10 +3,10 @@ import {
     ISCheckFriends,
     IsCheckNftTask, IsCheckStarsSendersTask,
     ISDailyTask, IsInternalChallengeTask,
-    IsOpenUrl,
+    IsOpenUrl, IsDaysChallengeTask,
     IsStockReg,
     IsSubscribeToTg, IsTransferToneTask, Task, TaskCardProps, TaskType, User, UserTask,
-    UserTaskFormated
+    UserTaskFormated, StoredValuesDayChallenge
 } from "../types/Types";
 import {CheckTransactions, isUserSubscribed, sendToCheckUserHaveNftFromCollections} from "../tonWork/CheckToNftitem";
 import UserService from "./UserService";
@@ -14,6 +14,7 @@ import ClanController from "../controllers/clanController";
 import {toNano} from "ton-core";
 import UserLeagueController from "../controllers/userLeagueController";
 import AcquisitionsController from "../controllers/acquisitionsController";
+import {parse} from "@telegram-apps/init-data-node";
 
 
 class TaskService {
@@ -33,7 +34,8 @@ class TaskService {
                    ut.etaps,
                    ut.lastCompletedDate,
                    ut.completed,
-                t.type
+                   ut.storedValues,
+                   t.type
             FROM tasks t
                      JOIN userTasks ut ON t.id = ut.taskId
             WHERE ut.userId = ?
@@ -56,7 +58,36 @@ class TaskService {
                 taskType: parsedTaskType
             };
             if (task.etaps == 1 || task.etaps == 3) {
-                await this.checkSuccessTask(userId, task.taskId);
+                if (IsDaysChallengeTask(taskWithParsedType.taskType)) {
+                    console.log("Вошел в проверку IsDaysChallengeTask")
+                    const currentDate = new Date().toISOString().split('T')[0];
+                    const yesterdayDate = new Date(Date.now() - 86400000).toISOString().split('T')[0]; // 86400000 ms = 1 день
+                    const storedValues = taskWithParsedType.storedValues;
+                    if (storedValues) {
+                        const parsedStoredValues = JSON.parse(storedValues);
+                        const resultDate = parsedStoredValues as StoredValuesDayChallenge;
+                        if (resultDate.dateLastComplete === yesterdayDate) {
+                            await this.updateUserTask(userId, taskWithParsedType.taskId, {
+                                etaps: 0,
+                            });
+                        } else if (resultDate.dateLastComplete !== yesterdayDate && resultDate.dateLastComplete !== currentDate) {
+                            const resultDate: StoredValuesDayChallenge = {
+                                dayCompleted: 1,
+                                dateLastComplete: currentDate
+                            }
+                            taskWithParsedType.storedValues = JSON.stringify(resultDate);
+                            await this.db.execute(`
+                                UPDATE userTasks
+                                SET storedValues = ?
+                                WHERE taskId = ?
+                                  AND userId = ?
+                            `, [taskWithParsedType.storedValues, taskWithParsedType.taskId, userId]);
+                        }
+                    }
+
+                } else {
+                    await this.checkSuccessTask(userId, task.taskId);
+                }
             } else if (taskWithParsedType.type == "DailyTask") {
                 console.log("parsedTaskType - ", parsedTaskType)
                 const lastDateUpdate = taskWithParsedType.lastCompletedDate
@@ -183,11 +214,25 @@ class TaskService {
                         } catch (e) {
                             return e;
                         }
-                    } else if(IsCheckStarsSendersTask(userTask.taskType)) {
+                    } else if (IsCheckStarsSendersTask(userTask.taskType)) {
                         try {
                             console.error("IsInternalChallengeTask voshol")
                             const resultCheck = await this.checkStarsSenders(user, userTask);
                             console.error("IsInternalChallengeTask resultCheck -", resultCheck)
+                            if (resultCheck === "Task completion status updated successfully") {
+                                const newUserState = await this.userService.getUserFromIdSimply(userId);
+                                return newUserState;
+                            } else {
+                                return resultCheck;
+                            }
+                        } catch (e) {
+                            return e;
+                        }
+                    } else if (IsDaysChallengeTask(userTask.taskType)) {
+                        try {
+                            console.error("IsDaysChallengeTask voshol")
+                            const resultCheck = await this.checkDaysChallenge(user, userTask);
+                            console.error("IsDaysChallengeTask resultCheck -", resultCheck)
                             if (resultCheck === "Task completion status updated successfully") {
                                 const newUserState = await this.userService.getUserFromIdSimply(userId);
                                 return newUserState;
@@ -207,13 +252,95 @@ class TaskService {
     }
 
 
+    async checkDaysChallenge(user: User, selectedTask: UserTask) {
+        if (IsDaysChallengeTask(selectedTask.taskType)) {
+            const storedValues = selectedTask.storedValues;
+            // Получаем сегодняшнюю и вчерашнюю дату в формате "YYYY-MM-DD"
+            const currentDate = new Date().toISOString().split('T')[0];
+            const yesterdayDate = new Date(Date.now() - 86400000).toISOString().split('T')[0]; // 86400000 ms = 1 день
+            console.log("storedValues is ", storedValues)
+            const resultChecking = await CheckTransactions(user.userId, user.address, toNano(selectedTask.taskType.price), selectedTask.taskType.addressToTransfer)
+            if (storedValues) {
+                const parsedStoredValues = JSON.parse(storedValues);
+                const resultDate = parsedStoredValues as StoredValuesDayChallenge;
+
+                if (resultChecking == true) {
+                    if (resultDate.dateLastComplete === currentDate) {
+                        return "A transaction should be sorvered no more than once a day"
+                    }
+                    if (resultDate.dateLastComplete === yesterdayDate) {
+                        if (resultDate.dayCompleted == selectedTask.taskType.days) {
+                            await this.updateTaskCompletion(user.userId, selectedTask.taskId, true);
+                        } else {
+                            resultDate.dateLastComplete = currentDate;
+                            resultDate.dayCompleted = resultDate.dayCompleted + 1
+                            selectedTask.storedValues = JSON.stringify(resultDate);
+                            await this.db.execute(`
+                                UPDATE userTasks
+                                SET storedValues = ?
+                                WHERE taskId = ?
+                                  AND userId = ?
+                            `, [selectedTask.storedValues, selectedTask.taskId, user.userId]);
+
+                            await this.updateUserTask(user.userId, selectedTask.taskId, {
+                                etaps: 1,
+                                dataSendCheck: currentDate,
+                            });
+                        }
+
+                        return "Task completion status updated successfully"
+                    } else {
+                        resultDate.dateLastComplete = currentDate;
+                        resultDate.dayCompleted = 1
+                        selectedTask.storedValues = JSON.stringify(resultDate);
+                        await this.db.execute(`
+                            UPDATE userTasks
+                            SET storedValues = ?
+                            WHERE taskId = ?
+                              AND userId = ?
+                        `, [selectedTask.storedValues, selectedTask.taskId, user.userId]);
+
+                        return "Task completion status updated successfully"
+                    }
+                } else {
+                    return resultChecking
+                }
+
+            } else {
+                if (resultChecking == true) {
+                    const acquisitionsController = new AcquisitionsController(this.db)
+                    const result = await acquisitionsController.getAcquisitions(user.userId)
+                    console.log("result", result)
+                    const resultDate: StoredValuesDayChallenge = {dayCompleted: 1, dateLastComplete: currentDate}
+                    selectedTask.storedValues = JSON.stringify(resultDate);
+                    await this.db.execute(`
+                        UPDATE userTasks
+                        SET storedValues = ?
+                        WHERE taskId = ?
+                          AND userId = ?
+                    `, [selectedTask.storedValues, selectedTask.taskId, user.userId]);
+
+                    await this.updateUserTask(user.userId, selectedTask.taskId, {
+                        etaps: 1,
+                        dataSendCheck: currentDate,
+                    });
+
+                } else {
+                    return resultChecking
+                }
+                return "Task completion status updated successfully"
+            }
+        }
+    }
+
+
     async checkStarsSenders(user: User, selectedTask: UserTask) {
-        if(IsCheckStarsSendersTask(selectedTask.taskType)) {
+        if (IsCheckStarsSendersTask(selectedTask.taskType)) {
             const acquisitionsController = new AcquisitionsController(this.db)
             const result = await acquisitionsController.getAcquisitions(user.userId)
-            console.log("result",result)
-            if(result) {
-                if(selectedTask.taskType.unnecessaryWaste <=result.totalAmount) {
+            console.log("result", result)
+            if (result) {
+                if (selectedTask.taskType.unnecessaryWaste <= result.totalAmount) {
                     await this.updateTaskCompletion(user.userId, selectedTask.taskId, true);
                     return "Task completion status updated successfully";
                 } else {
@@ -225,12 +352,11 @@ class TaskService {
         }
     }
 
-
     async checkTransOptions(user: User, selectedTask: UserTask) {
         if (IsTransferToneTask(selectedTask.taskType)) {
             if (user.address != undefined && user.address !== "") {
                 try {
-                    const resultChecking = await CheckTransactions(user.address, toNano(selectedTask.taskType.price), selectedTask.taskType.addressToTransfer)
+                    const resultChecking = await CheckTransactions(user.userId, user.address, toNano(selectedTask.taskType.price), selectedTask.taskType.addressToTransfer)
                     if (resultChecking == true) {
                         switch (selectedTask.taskType.rewardType) {
                             case "coin":
@@ -274,7 +400,7 @@ class TaskService {
                         return "You have not created a clan"
                     }
             }
-            return "Task named is not supported"
+            return "Task named is not supported";
         } else {
             return "Task has any type";
         }
@@ -533,7 +659,7 @@ class TaskService {
     async updateTaskCompletion(userId: string, taskId: number, completed: boolean, addedUserCoins: boolean = true): Promise<void> {
         const updateTaskSql = `
             UPDATE userTasks
-            SET completed         = ?,
+            SET completed = ?,
                 lastCompletedDate = ?
             WHERE userId = ?
               AND taskId = ?
@@ -565,7 +691,7 @@ class TaskService {
 
             if (completed) {
                 // Update user's coins
-                if(addedUserCoins) {
+                if (addedUserCoins) {
                     await this.db.execute(updateUserCoinsSql, [task.coins, userId]);
                 }
             }

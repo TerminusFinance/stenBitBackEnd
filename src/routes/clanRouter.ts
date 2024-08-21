@@ -99,11 +99,11 @@ function clanRouter(clanController: clanController) {
 
     router.post('/createClan', authMiddleware, async (req: Request, res: Response) => {
         try {
-            const {clanName, descriptions} = req.body;
+            const {clanName, descriptions, urlChannel} = req.body;
             const initData = res.locals.initData as InitDataParsed;
             const userId = initData.user?.id
             if (userId != undefined) {
-                const result = await clanController.createClan(clanName, descriptions, userId.toString())
+                const result = await clanController.createClan(clanName, descriptions, userId.toString(), urlChannel)
                 res.status(200).json({message: result});
             } else {
                 res.status(400).json({message: "auth data is null"});

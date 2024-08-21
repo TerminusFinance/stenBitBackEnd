@@ -314,7 +314,8 @@ class UserService {
                        ut.dataSendCheck,
                        ut.isLoading,
                        ut.etTx,
-                       ut.etaps
+                       ut.etaps,
+                       ut.storedValues
                 FROM tasks t
                          JOIN userTasks ut ON t.id = ut.taskId
                 WHERE ut.userId = ?
@@ -351,7 +352,8 @@ class UserService {
                     dataSendCheck: task.dataSendCheck,
                     isLoading: task.isLoading === 1, // Convert 1 to true and 0 to false
                     etTx: task.etTx,
-                    etaps: task.etaps
+                    etaps: task.etaps,
+                    storedValues: task.storedValues ? JSON.parse(task.storedValues) : ""
                 };
             }));
 
@@ -377,7 +379,8 @@ class UserService {
                     dataSendCheck: task.dataSendCheck,
                     isLoading: task.isLoading === 1, // Convert 1 to true and 0 to false
                     etTx: task.etTx,
-                    etaps: task.etaps
+                    etaps: task.etaps,
+                    storedValues: task.storedValues ? JSON.parse(task.storedValues) : ""
                 };
             }));
 
@@ -750,7 +753,7 @@ class UserService {
 
             const userTasksSql = `
             SELECT t.id AS taskId, t.text, t.coins, t.checkIcon, t.taskType, t.type, ut.completed, ut.lastCompletedDate,
-                   ut.actionBtnTx, ut.txDescription, ut.dataSendCheck, ut.isLoading, ut.etTx, ut.etaps
+                   ut.actionBtnTx, ut.txDescription, ut.dataSendCheck, ut.isLoading, ut.etTx, ut.etaps, ut.storedValues
             FROM tasks t
             JOIN userTasks ut ON t.id = ut.taskId
             WHERE ut.userId = ?
@@ -784,7 +787,8 @@ class UserService {
                     dataSendCheck: task.dataSendCheck,
                     isLoading: task.isLoading === 1,
                     etTx: task.etTx,
-                    etaps: task.etaps
+                    etaps: task.etaps,
+                    storedValues: task.storedValues
                 };
             }));
 
@@ -807,7 +811,8 @@ class UserService {
                     dataSendCheck: task.dataSendCheck,
                     isLoading: task.isLoading,
                     etTx: task.etTx,
-                    etaps: task.etaps
+                    etaps: task.etaps,
+                    storedValues: task.storedValues
                 };
             });
             const energyBoost = user.boosts.find((boost: UserBoost) => boost.boostName === 'energy limit');

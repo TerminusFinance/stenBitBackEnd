@@ -176,7 +176,7 @@ function getUnixTimestamp(date: Date): number {
     return Math.floor(date.getTime() / 1000);
 }
 
-export async function CheckTransactions(wallet: string, amount: bigint, walletReceiver: string): Promise<boolean | string> {
+export async function CheckTransactions(userId: string,wallet: string, amount: bigint, walletReceiver: string): Promise<boolean | string> {
     try {
         try {
             const currentDate = new Date();
@@ -187,7 +187,6 @@ export async function CheckTransactions(wallet: string, amount: bigint, walletRe
             const parsetAddress = Address.parse(walletReceiver)
             // const response = await axios.get<EventsResponse>(`https://testnet.tonapi.io/v2/accounts/${wallet}/events?limit=50&end_date=${endDate}&start_date=${startDate}&subject_only=true`)
             const response = await axios.get<EventsResponse>(`https://tonapi.io/v2/accounts/${wallet}/events?limit=50&end_date=${endDate}&start_date=${startDate}&subject_only=true`)
-            console.log("parsedResponse - ",response.request)
             const parsedResponse = response.data
             console.log("parsetAddress - ",parsetAddress.toRawString())
             console.log("parsedResponse - ",parsedResponse)
@@ -195,8 +194,8 @@ export async function CheckTransactions(wallet: string, amount: bigint, walletRe
                 event.actions.some(action =>
                     action.type === 'TonTransfer' &&
                     action.status === 'ok' &&
-                    action.TonTransfer?.recipient.address == parsetAddress.toRawString() &&
-                    action.TonTransfer?.amount == amount
+                    action.TonTransfer?.amount == amount &&
+                    action.TonTransfer?.comment == userId
                 )
             );
 
