@@ -61,7 +61,7 @@ class ClanController {
     }
 
     async createClan(clanName: string, description: string, userId: string, urlChannel?: string): Promise<string> {
-        const clanCreationCost = 250000;
+        const clanCreationCost = 50000;
         try {
             // Проверка, есть ли пользователь уже в клане
             const userClanCheckSql = `SELECT clanId FROM userClans WHERE userId = ?`;

@@ -584,6 +584,7 @@ class TaskService {
     }
 
     async checkOpenUrlReg(user: User, selectedTask: UserTask) {
+        console.log("openUrl tasks")
         if (IsOpenUrl(selectedTask.taskType)) {
             const currentDate = new Date();
 
@@ -595,14 +596,19 @@ class TaskService {
                   AND taskId = ?
             `;
 
+            console.log("poluch data")
+
             const [userTaskRows] = await this.db.execute<mysql.RowDataPacket[]>(userTaskSql, [user.userId, selectedTask.taskId]);
             const userTask = userTaskRows[0] as UserTaskFormated | undefined;
 
             if (!userTask) {
+                console.log("poluch data !userTask")
                 throw new Error('Task not found for the user.');
             }
 
             let {etaps, dataSendCheck} = userTask;
+
+            console.log(`etaps - ${etaps} dataSendCheck - ${dataSendCheck}`)
 
             // Если etaps или dataSendCheck равны null, считаем, что задача не начата
             if (etaps === null || dataSendCheck === null) {
@@ -611,14 +617,17 @@ class TaskService {
             }
 
             if (etaps === 0) {
+                console.log("perevod to 1 etaps")
                 // Перевод на этап 1 и сохранение текущей даты
                 await this.updateUserTask(user.userId, selectedTask.taskId, {
                     etaps: 1,
                     dataSendCheck: currentDate.toISOString(),
                 });
+                console.log("perevod to 1 etaps complete")
                 return "Task completion status updated successfully";
 
             } else if (etaps === 1) {
+                console.log("perevod to etaps === 1")
                 // Проверка, прошло ли больше 24 часов с момента сохраненной даты
                 if (dataSendCheck) {
                     const savedDate = new Date(dataSendCheck);
@@ -627,10 +636,12 @@ class TaskService {
                     console.error("nextDay - ", nextDay);
                     if (currentDate > nextDay) {
                         // Завершение задачи и перевод на этап 4
+
                         await this.updateUserTask(user.userId, selectedTask.taskId, {
                             completed: true,
                             etaps: 4,
                         });
+                        console.log("perevod to etaps === 1 compete")
                         return "Task completion status updated successfully";
                     } else {
                         throw new Error('Less than 24 hours have passed since the last update.');
@@ -639,6 +650,7 @@ class TaskService {
                     throw new Error('Invalid dataSendCheck value.');
                 }
             }
+            console.log("прошли if else")
         }
     }
 
