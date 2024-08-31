@@ -174,8 +174,8 @@ class UserService {
 
         console.log("user.energyLimitLevel - ", user.energyLimitLevel)
         const maxCoinsChanged = isTurboBoostActive
-            ? 3000 * 2 * user.energyLimitLevel
-            : user.currentEnergy * (user.energyLimitLevel || 1);  // Используем energyLimitLevel, если он существует
+            ? 2000 * 2 * user.energyLimitLevel
+            : user.currentEnergy * (1.5);  // Используем energyLimitLevel, если он существует
         console.log("maxCoinsChanged - ", maxCoinsChanged)
         console.log("coin to add - ", coins)
         // Если турбобуст не активен, проверяем и списываем энергию
@@ -307,6 +307,7 @@ class UserService {
                        t.checkIcon,
                        t.taskType,
                        t.type,
+                       t.sortLocal,
                        ut.completed,
                        ut.lastCompletedDate,
                        ut.actionBtnTx,
@@ -353,7 +354,8 @@ class UserService {
                     isLoading: task.isLoading === 1, // Convert 1 to true and 0 to false
                     etTx: task.etTx,
                     etaps: task.etaps,
-                    storedValues: task.storedValues ? JSON.parse(task.storedValues) : ""
+                    storedValues: task.storedValues ? JSON.parse(task.storedValues) : "",
+                    sortLocal: task.sortLocal
                 };
             }));
 
@@ -380,7 +382,8 @@ class UserService {
                     isLoading: task.isLoading === 1, // Convert 1 to true and 0 to false
                     etTx: task.etTx,
                     etaps: task.etaps,
-                    storedValues: task.storedValues ? JSON.parse(task.storedValues) : ""
+                    storedValues: task.storedValues ? JSON.parse(task.storedValues) : "",
+                    sortLocal: task.sortLocal
                 };
             }));
 
@@ -752,7 +755,7 @@ class UserService {
             const invitees = inviteeRows as InvitedUser[];
 
             const userTasksSql = `
-            SELECT t.id AS taskId, t.text, t.coins, t.checkIcon, t.taskType, t.type, ut.completed, ut.lastCompletedDate,
+            SELECT t.id AS taskId, t.text, t.coins, t.checkIcon, t.taskType, t.type, t.sortLocal, ut.completed, ut.lastCompletedDate,
                    ut.actionBtnTx, ut.txDescription, ut.dataSendCheck, ut.isLoading, ut.etTx, ut.etaps, ut.storedValues
             FROM tasks t
             JOIN userTasks ut ON t.id = ut.taskId
@@ -788,7 +791,8 @@ class UserService {
                     isLoading: task.isLoading === 1,
                     etTx: task.etTx,
                     etaps: task.etaps,
-                    storedValues: task.storedValues
+                    storedValues: task.storedValues,
+                    sortLocal: task.sortLocal
                 };
             }));
 
@@ -812,7 +816,8 @@ class UserService {
                     isLoading: task.isLoading,
                     etTx: task.etTx,
                     etaps: task.etaps,
-                    storedValues: task.storedValues
+                    storedValues: task.storedValues,
+                    sortLocal: task.sortLocal
                 };
             });
             const energyBoost = user.boosts.find((boost: UserBoost) => boost.boostName === 'energy limit');

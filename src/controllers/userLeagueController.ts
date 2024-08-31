@@ -30,49 +30,89 @@ class UserLeagueController {
     }
 
     // Получение всех пользователей лиги
+    // async getAllUserLeagues(): Promise<UserLeague[]> {
+    //     const query = 'SELECT * FROM UserLeague';
+    //     const [rows] = await this.db.execute(query);
+    //     console.log("rows - ", rows)
+    //     return rows as UserLeague[];
+    // }
+
     async getAllUserLeagues(): Promise<UserLeague[]> {
-        const query = 'SELECT * FROM UserLeague';
+        const query = `
+        SELECT * 
+        FROM UserLeague 
+        ORDER BY score DESC 
+        LIMIT 1000
+    `;
         const [rows] = await this.db.execute(query);
-        console.log("rows - ", rows)
+
+        console.log("rows - ", rows); // Логирование полученных данных
+
         return rows as UserLeague[];
     }
 
-    async getUserLeagueById(userId: string): Promise<UserLeague | null> {
-        // Проверка существующей записи
-        const selectQuery = 'SELECT * FROM UserLeague WHERE userId = ?';
-        const [rows] = await this.db.execute(selectQuery, [userId]);
-        let userLeague = (rows as UserLeague[])[0];
 
+    async getUserLeagueById(userId: string): Promise<{ userLeague: UserLeague | null; rank: number | null }> {
+        try {
+            // Проверка существующей записи
+            const selectQuery = 'SELECT * FROM UserLeague WHERE userId = ?';
+            const [rows] = await this.db.execute(selectQuery, [userId]);
+            let userLeague = (rows as UserLeague[])[0];
 
-        if (!userLeague) {
-            const insertQuery = `
-            INSERT INTO UserLeague (userId, userName, imageAvatar, score, buyscore, freescore)
-            SELECT u.userId, u.userName, u.imageAvatar, 0, 0, 0
-            FROM users u
-            WHERE u.userId = ?
-        `;
-            await this.db.execute(insertQuery, [userId]);
+            // Если пользователь не найден, добавляем его
+            if (!userLeague) {
+                const insertQuery = `
+                INSERT INTO UserLeague (userId, userName, imageAvatar, score, buyscore, freescore)
+                SELECT u.userId, u.userName, u.imageAvatar, 0, 0, 0
+                FROM users u
+                WHERE u.userId = ?
+            `;
+                await this.db.execute(insertQuery, [userId]);
 
-            // Повторная попытка получить созданную запись
-            const [newRows] = await this.db.execute(selectQuery, [userId]);
-            userLeague = (newRows as UserLeague[])[0];
+                // Повторная попытка получить созданную запись
+                const [newRows] = await this.db.execute(selectQuery, [userId]);
+                userLeague = (newRows as UserLeague[])[0];
+
+                console.log("Newly inserted User League data:", userLeague);
+            }
+
+            // Если пользователь существует, определяем его позицию в рейтинге
+            let rank: number | null = null;
+            if (userLeague) {
+                const rankQuery = `
+                SELECT COUNT(*) AS userRank
+                FROM UserLeague
+                WHERE score > (
+                    SELECT score FROM UserLeague WHERE userId = ?
+                )
+            `;
+                const [rankRows] = await this.db.execute(rankQuery, [userId]);
+                rank = (rankRows as any[])[0]?.userRank + 1 || null; // Вычисление позиции с добавлением 1
+
+                console.log("Rank data:", rank);
+            }
+
+            return { userLeague, rank };
+        } catch (error) {
+            console.error('Error fetching user league by ID:', error);
+            return { userLeague: null, rank: null };
         }
-
-        return userLeague || null;
     }
+
+
 
 
     // Обновление рейтинга пользователя
     async updateUserLeagueScore(userId: string, scoreIncrement: number, source: 'buyscore' | 'freescore'): Promise<void> {
         const userLeague = await this.getUserLeagueById(userId);
 
-        if (!userLeague) {
+        if (!userLeague.userLeague) {
             throw new Error(`User with ID ${userId} not found in UserLeague`);
         }
 
-        let updatedScore = userLeague.score + scoreIncrement;
-        let updatedBuyScore = userLeague.buyscore;
-        let updatedFreeScore = userLeague.freescore;
+        let updatedScore = userLeague.userLeague.score + scoreIncrement;
+        let updatedBuyScore = userLeague.userLeague.buyscore;
+        let updatedFreeScore = userLeague.userLeague.freescore;
 
         if (source === 'buyscore') {
             updatedBuyScore += scoreIncrement;

@@ -5,6 +5,44 @@ import UserController from "./userController";
 class AdminsController {
     constructor(private db: Connection) {}
 
+
+    async getUserCount(): Promise<number> {
+        const countUsersSql = `SELECT COUNT(*) AS total FROM users`;
+        const [rows]: [RowDataPacket[], FieldPacket[]] = await this.db.execute(countUsersSql);
+        const totalUsers = rows[0].total;
+        return totalUsers;
+    }
+
+    async getUserCountWithMoreThan10Coins(): Promise<number> {
+        const countUsersWithCoinsSql = `SELECT COUNT(*) AS total FROM users WHERE coins > 10`;
+        const [rows]: [RowDataPacket[], FieldPacket[]] = await this.db.execute(countUsersWithCoinsSql);
+        const totalUsersWithMoreThan10Coins = rows[0].total;
+        return totalUsersWithMoreThan10Coins;
+    }
+
+    async getUserStatistics() {
+        try {
+            // Получаем общее количество пользователей
+            const allUsers = await this.getUserCount();
+
+            // Получаем количество пользователей с монетами больше 10
+            const allSortedUsers = await this.getUserCountWithMoreThan10Coins();
+
+            // Формируем объект для возврата
+            const statistics = {
+                allUsers: allUsers,
+                usersWithMoreThan10Coins: allSortedUsers,
+            };
+
+            // Возвращаем объект в формате JSON
+            return statistics;
+        } catch (error) {
+            console.error('Error fetching user statistics:', error);
+            throw new Error('Failed to fetch user statistics');
+        }
+    }
+
+
     async updateUser(userId: string, updatedData: Partial<User>): Promise<User | undefined> {
         const { userName, coins, address, referral, currentEnergy, maxEnergy } = updatedData;
         const updateDate = new Date().toISOString();

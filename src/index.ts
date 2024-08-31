@@ -24,7 +24,7 @@ import UserLeagueController from "./controllers/userLeagueController";
 
 
 const app = express();
-const port = 3700;
+const port = 3000;
 
 app.use(express.json());
 app.use(cors());
@@ -39,15 +39,15 @@ connectDatabase().then(db => {
     const acquisitionsController = new AcquisitionsController(db);
     const userLeagueController = new UserLeagueController(db);
 
-    app.use('/test/api/users', userRouter(userController));
-    app.use('/test/api/leagues', leagueRouter(leagueController));
-    app.use('/test/api/task', taskRouter(userController));
-    app.use('/test/api/adm', adminsRouter(adminsController));
-    app.use('/test/api/prem', premiumRouter(premiumController));
-    app.use('/test/api/clan', clanRouter(clanController));
-    app.use('/test/api/coinLevel', coinProgressLevelRouter(coinProgressLevelController));
-    app.use('/test/api/acquisitions', acquisitionsRouter(acquisitionsController));
-    app.use('/test/api/userLeague', userLeagueRouter(userLeagueController));
+    app.use('/api/users', userRouter(userController));
+    app.use('/api/leagues', leagueRouter(leagueController));
+    app.use('/api/task', taskRouter(userController));
+    app.use('/api/adm', adminsRouter(adminsController));
+    app.use('/api/prem', premiumRouter(premiumController));
+    app.use('/api/clan', clanRouter(clanController));
+    app.use('/api/coinLevel', coinProgressLevelRouter(coinProgressLevelController));
+    app.use('/api/acquisitions', acquisitionsRouter(acquisitionsController));
+    app.use('/api/userLeague', userLeagueRouter(userLeagueController));
 
     app.get('/api/img/:filename', (req, res) => {
         const filename = req.params.filename;

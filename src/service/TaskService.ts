@@ -671,7 +671,7 @@ class TaskService {
     async updateTaskCompletion(userId: string, taskId: number, completed: boolean, addedUserCoins: boolean = true): Promise<void> {
         const updateTaskSql = `
             UPDATE userTasks
-            SET completed = ?,
+            SET completed         = ?,
                 lastCompletedDate = ?
             WHERE userId = ?
               AND taskId = ?
@@ -746,7 +746,8 @@ class TaskService {
                     type: task.type,
                     completed: false, // В таблице tasks нет поля completed, поэтому задаем значение false
                     actionBtnTx: task.actionBtnTx,
-                    txDescription: task.txDescription
+                    txDescription: task.txDescription,
+                    sortLocal: task.sortLocal
                 };
             }
         } catch (error) {
@@ -791,7 +792,8 @@ class TaskService {
                    taskType,
                    type,
                    actionBtnTx,
-                   txDescription
+                   txDescription,
+                   sortLocal
             FROM tasks
         `;
 
@@ -810,34 +812,58 @@ class TaskService {
                 type: task.type,
                 completed: false, // Default to false since these are all tasks, not user-specific
                 actionBtnTx: task.actionBtnTx,
-                txDescription: task.txDescription
+                txDescription: task.txDescription,
+                sortLocal: task.sortLocal
             }));
         } else {
             return []
         }
     }
 
-    async addTaskToAllUsers(text: string, coins: number, checkIcon: string, taskType: TaskType, type: string, actionBtnTx: string | null = null, txDescription: string | null = null): Promise<TaskCardProps> {
-        const insertTaskSql = `
-            INSERT INTO tasks (text, coins, checkIcon, taskType, type, actionBtnTx, txDescription)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        `;
+    async addTaskToAllUsers(
+        text: string,
+        coins: number,
+        checkIcon: string,
+        taskType: TaskType,
+        type: string,
+        sortLocal?: string | null,
+        actionBtnTx: string | null = null,
+        txDescription: string | null = null
+    ): Promise<TaskCardProps> {
+        // Начальная часть SQL-запроса
+        let insertTaskSql = `
+        INSERT INTO tasks (text, coins, checkIcon, taskType, type, actionBtnTx, txDescription`;
 
-        const [result] = await this.db.execute<mysql.OkPacket>(insertTaskSql, [text, coins, checkIcon, JSON.stringify(taskType), type, actionBtnTx, txDescription]);
+        // Начальные параметры для вставки
+        const insertValues = [text, coins, checkIcon, JSON.stringify(taskType), type, actionBtnTx, txDescription];
+        const placeholders = `?, ?, ?, ?, ?, ?, ?`;
+
+        // Добавляем `sortLocal`, если он указан
+        if (sortLocal !== undefined && sortLocal !== null) {
+            insertTaskSql += `, sortLocal`;
+            insertValues.push(sortLocal);
+        }
+
+        // Закрываем SQL-запрос
+        insertTaskSql += `) VALUES (${placeholders}${sortLocal !== undefined && sortLocal !== null ? ', ?' : ''})`;
+
+        // Выполняем запрос
+        const [result] = await this.db.execute<mysql.OkPacket>(insertTaskSql, insertValues);
         const newTaskId = result.insertId;
 
         if (newTaskId === undefined) {
             throw new Error('Failed to create new task');
         }
 
-        const allUsersSql = `SELECT userId
-                             FROM users`;
+        // Получаем всех пользователей
+        const allUsersSql = `SELECT userId FROM users`;
         const [allUsersResult] = await this.db.execute<mysql.RowDataPacket[]>(allUsersSql);
         const allUsers = allUsersResult as { userId: string }[];
 
-        const insertUserTaskSql = `INSERT INTO userTasks (userId, taskId, completed)
-                                   VALUES (?, ?, ?)`;
+        // SQL-запрос для добавления задач пользователям
+        const insertUserTaskSql = `INSERT INTO userTasks (userId, taskId, completed) VALUES (?, ?, ?)`;
 
+        // Добавляем задачи всем пользователям
         for (const user of allUsers) {
             await this.db.execute(insertUserTaskSql, [user.userId, newTaskId, false]);
         }
@@ -851,9 +877,11 @@ class TaskService {
             taskType,
             type,
             actionBtnTx,
-            txDescription
+            txDescription,
+            sortLocal
         };
     }
+
 
 
 }

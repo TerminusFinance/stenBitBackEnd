@@ -21,10 +21,10 @@ export interface User {
     boosts?: UserBoost[];
     listUserInvited?: InvitedUser[];
     tasks?: UserTask[];
-    imageAvatar? : string | null;
+    imageAvatar?: string | null;
 }
 
-export interface UserBoost  {
+export interface UserBoost {
     // userId: string;
     boostName: string;
     level: number;
@@ -57,10 +57,11 @@ export interface UserTask {
     actionBtnTx?: string | null;
     txDescription?: string | null;
     etaps?: number | null;
-    etTx?: string| null;
+    etTx?: string | null;
     isLoading: boolean;
     dataSendCheck?: string | null;
-    storedValues? : string | null;
+    storedValues?: string | null;
+    sortLocal?: string | null;
 }
 
 export interface UserTaskFormated {
@@ -75,10 +76,11 @@ export interface UserTaskFormated {
     actionBtnTx?: string | null;
     txDescription?: string | null;
     etaps?: number | null;
-    etTx?: string| null;
+    etTx?: string | null;
     isLoading: boolean | number;
     dataSendCheck?: string | null;
-    storedValues? : string | null;
+    storedValues?: string | null;
+    sortLocal?: string | null;
 }
 
 export interface Task {
@@ -90,6 +92,7 @@ export interface Task {
     type: string;
     actionBtnTx?: string | null;
     txDescription?: string | null;
+    sortLocal?: string | null;
 }
 
 export interface TaskCardProps {
@@ -102,6 +105,7 @@ export interface TaskCardProps {
     type: string;
     actionBtnTx?: string | null;
     txDescription?: string | null;
+    sortLocal?: string | null;
 }
 
 export interface SampleTask {
@@ -157,23 +161,32 @@ export interface TransferToneTask {
 }
 
 export interface DaysChallengeTask {
-    type : "DaysChallenge",
+    type: "DaysChallenge",
     price: number;
     addressToTransfer: string;
     days: number;
 }
 
-export type TaskType = SampleTask 
-| OpenUrlTask 
-| CheckNftTask 
-| CheckFriendsTask 
-| SubscribeToTgTask 
-| StockRegTask 
-| DailyTask 
-| InternalChallengeTask 
-| TransferToneTask 
-| CheckStarsSendersTask 
-| DaysChallengeTask;
+export interface StockOperationsTask {
+    type: 'StockOperations';
+    price: number;
+    addressToCheck: string;
+    urlStock: string;
+    rewardType: string;
+}
+
+export type TaskType = SampleTask
+    | OpenUrlTask
+    | CheckNftTask
+    | CheckFriendsTask
+    | SubscribeToTgTask
+    | StockRegTask
+    | DailyTask
+    | InternalChallengeTask
+    | TransferToneTask
+    | CheckStarsSendersTask
+    | DaysChallengeTask
+    | StockOperationsTask;
 
 export const ISDailyTask = (taskType: TaskType): taskType is DailyTask => {
     return taskType.type === 'Daily';
@@ -199,7 +212,7 @@ export const ISCheckFriends = (taskType: TaskType): taskType is CheckFriendsTask
     return taskType.type === 'CheckFriends';
 };
 
-export const IsInternalChallengeTask =  (taskType: TaskType): taskType is InternalChallengeTask => {
+export const IsInternalChallengeTask = (taskType: TaskType): taskType is InternalChallengeTask => {
     return taskType.type === 'InternalChallenge';
 };
 

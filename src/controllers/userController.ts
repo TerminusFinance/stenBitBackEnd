@@ -56,8 +56,8 @@ class UserController {
 
     // task operation
 
-    async addTaskToAllUsers(text: string, coins: number, checkIcon: string, taskType: TaskType, type: string, actionBtnTx: string | null = null, txDescription: string | null = null): Promise<TaskCardProps> {
-        return this.taskService.addTaskToAllUsers(text, coins, checkIcon, taskType, type, actionBtnTx, txDescription);
+    async addTaskToAllUsers(text: string, coins: number, checkIcon: string, taskType: TaskType, type: string,sortLocal?: string | null, actionBtnTx: string | null = null, txDescription: string | null = null): Promise<TaskCardProps> {
+        return this.taskService.addTaskToAllUsers(text, coins, checkIcon, taskType, type, sortLocal, actionBtnTx, txDescription);
     }
 
 

@@ -11,8 +11,8 @@ function taskRouter(taskController: TaskController) {
 
     router.post('/createTask', authFromCode, async (req, res) => {
         try {
-            const { text, coins, checkIcon, taskType, type } = req.body;
-            const task = await taskController.addTaskToAllUsers(text, coins, checkIcon, taskType, type);
+            const { text, coins, checkIcon, taskType, type, sortLocal} = req.body;
+            const task = await taskController.addTaskToAllUsers(text, coins, checkIcon, taskType, type, sortLocal);
             res.status(200).json(task);
         } catch (error) {
             res.status(400).json({ message: error });

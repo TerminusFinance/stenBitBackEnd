@@ -106,7 +106,8 @@ async function createTables(db: Connection) {
             taskType VARCHAR(255),
             type VARCHAR(255),
             actionBtnTx VARCHAR(255) DEFAULT NULL,
-            txDescription VARCHAR(255) DEFAULT NULL
+            txDescription VARCHAR(255) DEFAULT NULL,
+            sortLocal VARCHAR(255) DEFAULT NULL
         );
     `;
 
@@ -128,6 +129,7 @@ async function createTables(db: Connection) {
             etTx VARCHAR(255) DEFAULT NULL,
             etaps INT DEFAULT 0,
             storedValues VARCHAR(255) DEFAULT NULL,
+            sortLocal VARCHAR(255) DEFAULT NULL,
             FOREIGN KEY (userId) REFERENCES users(userId),
             FOREIGN KEY (taskId) REFERENCES tasks(id),
             PRIMARY KEY (userId, taskId)
@@ -287,8 +289,20 @@ async function addUrlChannelToClans(db: Connection) {
             ADD COLUMN storedValues VARCHAR(255) DEFAULT NULL;
         `
 
+        const addedSortLocalUserTasks = `
+            ALTER TABLE userTasks
+            ADD COLUMN  sortLocal VARCHAR(255) DEFAULT NULL;
+        `
+
+        const addedSortLocalTasks = `
+            ALTER TABLE tasks
+            ADD COLUMN  sortLocal VARCHAR(255) DEFAULT NULL;
+        `
+
         // Выполнение запроса на добавление нового столбца
-        await db.execute(addStoredValueQuery);
+        // await db.execute(addStoredValueQuery);
+        await db.execute(addedSortLocalTasks);
+        await db.execute(addedSortLocalUserTasks);
         // await db.execute(addreward);
         // await db.execute(addUrlChannelQuery);
         console.log('Urlchanel column added to clans table successfully');

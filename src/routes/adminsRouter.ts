@@ -17,6 +17,35 @@ function adminsRouter(adminsController: AdminsController) {
     });
 
 
+    router.get('/getUserCount', authFromCode, async (req, res) => {
+        try {
+            const task = await adminsController.getUserCount();
+            res.status(200).json(task);
+        } catch (error) {
+            res.status(400).json({ message: error });
+        }
+    });
+
+
+    router.get('/getUserSortedCount', authFromCode, async (req, res) => {
+        try {
+            const task = await adminsController.getUserCountWithMoreThan10Coins();
+            res.status(200).json(task);
+        } catch (error) {
+            res.status(400).json({ message: error });
+        }
+    });
+
+    router.get('/getUserStatistics', authFromCode, async (req, res) => {
+        try {
+            const task = await adminsController.getUserStatistics();
+            res.status(200).json(task);
+        } catch (error) {
+            res.status(400).json({ message: error });
+        }
+    });
+
+
     router.post('/deleteUser', authFromCode, async (req, res) => {
         try {
             const {userId} = req.body;
