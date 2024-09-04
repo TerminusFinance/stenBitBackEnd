@@ -5,6 +5,17 @@ import taskService from "../service/TaskService";
 /**
  * This user class, here returned from request users
  */
+
+export interface Address {
+    address: string
+}
+
+export interface Partners {
+    id: number;
+    name: string;
+    token: string;
+}
+
 export interface User {
     userId: string;
     userName: string;
@@ -22,6 +33,7 @@ export interface User {
     listUserInvited?: InvitedUser[];
     tasks?: UserTask[];
     imageAvatar?: string | null;
+    enabledAirDrop: number;
 }
 
 export interface UserBoost {
@@ -110,6 +122,7 @@ export interface TaskCardProps {
 
 export interface SampleTask {
     type: 'Sample';
+    nameCat: string;
 }
 
 export interface DailyTask {
@@ -175,6 +188,7 @@ export interface StockOperationsTask {
     rewardType: string;
 }
 
+
 export type TaskType = SampleTask
     | OpenUrlTask
     | CheckNftTask
@@ -226,6 +240,14 @@ export const IsCheckStarsSendersTask = (taskType: TaskType): taskType is CheckSt
 
 export const IsDaysChallengeTask = (taskType: TaskType): taskType is DaysChallengeTask => {
     return taskType.type === 'DaysChallenge';
+}
+
+export const IsStockOperationsTask = (taskType: TaskType): taskType is StockOperationsTask => {
+    return taskType.type === 'StockOperations'
+}
+
+export const IsSampleTask = (taskType: TaskType): taskType is SampleTask => {
+    return taskType.type === 'Sample';
 }
 
 export interface Boost {

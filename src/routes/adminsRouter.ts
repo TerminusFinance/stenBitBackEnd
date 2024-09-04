@@ -84,6 +84,40 @@ function adminsRouter(adminsController: AdminsController) {
         }
     });
 
+
+    router.get('/partner/getAllPartners',  authFromCode, async (req, res) => {
+        try {
+            const result = await adminsController.getAllPartners();
+            res.status(200).json(result);
+        } catch (error) {
+            console.error("error in getAllPartners",error)
+            res.status(400).json({ message: error });
+        }
+    });
+
+    router.delete('/partner/deletePartnerById',  authFromCode, async (req, res) => {
+        try {
+            const {id} = req.body;
+            const result = await adminsController.deletePartnerById(id);
+            res.status(200).json(result);
+        } catch (error) {
+            console.error("error in getAllPartners",error)
+            res.status(400).json({ message: error });
+        }
+    });
+
+
+    router.post('/partner/createPartner',  authFromCode, async (req, res) => {
+        try {
+            const {name, token} = req.body;
+            const result = await adminsController.createPartner(name, token);
+            res.status(200).json(result);
+        } catch (error) {
+            console.error("error in getAllPartners",error)
+            res.status(400).json({ message: error });
+        }
+    });
+
     return router;
 
 }

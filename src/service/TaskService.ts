@@ -6,7 +6,7 @@ import {
     IsOpenUrl, IsDaysChallengeTask,
     IsStockReg,
     IsSubscribeToTg, IsTransferToneTask, Task, TaskCardProps, TaskType, User, UserTask,
-    UserTaskFormated, StoredValuesDayChallenge
+    UserTaskFormated, StoredValuesDayChallenge, StockOperationsTask, IsStockOperationsTask, IsSampleTask
 } from "../types/Types";
 import {CheckTransactions, isUserSubscribed, sendToCheckUserHaveNftFromCollections} from "../tonWork/CheckToNftitem";
 import UserService from "./UserService";
@@ -242,6 +242,20 @@ class TaskService {
                         } catch (e) {
                             return e;
                         }
+                    } else if (IsSampleTask(userTask.taskType)) {
+                        try {
+                            console.error("IsDaysChallengeTask voshol")
+                            const resultCheck = await this.checkSampleTask(user, userTask);
+                            console.error("IsDaysChallengeTask resultCheck -", resultCheck)
+                            if (resultCheck === "Task completion status updated successfully") {
+                                const newUserState = await this.userService.getUserFromIdSimply(userId);
+                                return newUserState;
+                            } else {
+                                return resultCheck;
+                            }
+                        } catch (e) {
+                            return e;
+                        }
                     }
                 } else {
                     return "User task not found";
@@ -251,6 +265,22 @@ class TaskService {
         return "User not found";
     }
 
+
+    async checkSampleTask(user: User, selectedTask: UserTask) {
+        if (IsSampleTask(selectedTask.taskType)) {
+            if(selectedTask.taskType.nameCat == "airDrop") {
+                console.log("user.enabledAirDrop --",user.enabledAirDrop)
+                if(user.enabledAirDrop == 1) {
+                    await this.updateTaskCompletion(user.userId, selectedTask.taskId, true);
+                    return "Task completion status updated successfully"
+                } else {
+                    return "you have not connected the air drop"
+                }
+            } else {
+                return "unknown type"
+            }
+        }
+    }
 
     async checkDaysChallenge(user: User, selectedTask: UserTask) {
         if (IsDaysChallengeTask(selectedTask.taskType)) {
@@ -654,6 +684,11 @@ class TaskService {
         }
     }
 
+    async checkStockOperationsTask(user: User, selectedTask: UserTask) {
+        if(IsStockOperationsTask(selectedTask.taskType)) {
+            
+        }
+    }
 
     async updateUserTask(userId: string, taskId: number, updatedFields: Partial<UserTask>): Promise<void> {
         const fieldsToUpdate = Object.keys(updatedFields).map(field => `${field} = ?`).join(', ');
@@ -715,16 +750,20 @@ class TaskService {
 
 
     async deleteTask(taskId: number): Promise<void> {
-        const deleteTaskSql = `DELETE
-                               FROM tasks
-                               WHERE id = ?`;
-        await this.db.execute(deleteTaskSql, [taskId]);
+        try {
+            // First, delete the associated entries in userTasks table
+            const deleteUserTasksSql = `DELETE FROM userTasks WHERE taskId = ?`;
+            await this.db.execute(deleteUserTasksSql, [taskId]);
 
-        const deleteUserTasksSql = `DELETE
-                                    FROM userTasks
-                                    WHERE taskId = ?`;
-        await this.db.execute(deleteUserTasksSql, [taskId]);
+            // Then, delete the task from tasks table
+            const deleteTaskSql = `DELETE FROM tasks WHERE id = ?`;
+            await this.db.execute(deleteTaskSql, [taskId]);
+        } catch (error) {
+            console.error('Error deleting task:', error);
+            throw new Error(`Failed to delete task: ${error}`);
+        }
     }
+
 
 
     async getTaskById(taskId: number): Promise<TaskCardProps | undefined> {
@@ -881,9 +920,6 @@ class TaskService {
             sortLocal
         };
     }
-
-
-
 }
 
 export default TaskService;

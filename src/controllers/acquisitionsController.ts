@@ -4,6 +4,9 @@ import axios from "axios";
 import ClanController from "./clanController";
 import PremiumController from "./premiumController";
 import UserLeagueController from "./userLeagueController";
+import {CheckTransactions} from "../tonWork/CheckToNftitem";
+import {toNano} from "ton-core";
+import {Address} from "../types/Types";
 
 export interface AcquisitionsResult {
     userId: string;
@@ -228,7 +231,42 @@ class AcquisitionsController {
 
         return true;
     }
-}
 
+
+
+    async checkOutTransferTone(userId: string, amount: number, walletReceiver: string) {
+        try {
+            if (amount == 1) {
+                const userTaskSql = `
+                    SELECT address
+                    FROM users
+                    WHERE userId = ?
+                `;
+
+                const [addressResultRow] = await this.db.execute(userTaskSql, [userId])
+                const acquisition = (addressResultRow as Address[])[0];
+                const address = acquisition.address
+                if (typeof address == "string") {
+                    const result = await CheckTransactions(userId, address, toNano(amount), walletReceiver)
+                    if (result == true) {
+                        const updateQuery = `
+                            UPDATE users
+                            SET enabledAirDrop = 1
+                            WHERE userId = ?
+
+                        `;
+                        await this.db.execute(updateQuery, [userId])
+                        console.log("setupIs goooge return true")
+                        return true
+                    } else {
+                        return "Error"
+                    }
+                }
+            }
+        } catch (e) {
+            return "Error"
+        }
+    }
+}
 
 export default AcquisitionsController;

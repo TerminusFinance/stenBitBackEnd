@@ -28,6 +28,7 @@ function UserLeagueRouter(userLeagueController: UserLeagueController) {
             const allClans = await userLeagueController.getAllUserLeagues();
             res.status(200).json(allClans);
         } catch (error) {
+            console.log("error in getAllUsers,",error)
             res.status(400).json({message: error});
         }
     });

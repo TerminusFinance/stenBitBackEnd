@@ -43,7 +43,8 @@ async function createTables(db: Connection) {
             currentEnergy INT DEFAULT 0,
             maxEnergy INT DEFAULT 0,
             lastTapBootUpdate VARCHAR(255) DEFAULT NULL,
-            imageAvatar VARCHAR(255) DEFAULT NULL
+            imageAvatar VARCHAR(255) DEFAULT NULL,
+            enabledAirDrop INT DEFAULT 0
         );
     `;
 
@@ -220,6 +221,15 @@ async function createTables(db: Connection) {
     `;
 
 
+    const createTablePartners = `
+        CREATE TABLE IF NOT EXISTS partners(
+            id INT  AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            token VARCHAR(50) NOT NULL
+            )
+    `;
+
+
     try {
         await db.execute(createUsersTable);
         await db.execute(createCompletedTasksTable);
@@ -236,6 +246,7 @@ async function createTables(db: Connection) {
         await db.execute(createUserCoinsProgressLevelTable);
         await db.execute(createUserLeagueTable);
         await db.execute(createAcquisitionsTableQuery);
+        await db.execute(createTablePartners);
         console.log('Tables created successfully');
     } catch (error) {
         console.error('Failed to create tables:', error);
@@ -299,8 +310,13 @@ async function addUrlChannelToClans(db: Connection) {
             ADD COLUMN  sortLocal VARCHAR(255) DEFAULT NULL;
         `
 
+        const addedAirdromToUser = `
+            ALTER TABLE users
+            ADD COLUMN enabledAirDrop INT DEFAULT 0;
+        `
         // Выполнение запроса на добавление нового столбца
         // await db.execute(addStoredValueQuery);
+        await db.execute(addedAirdromToUser)
         await db.execute(addedSortLocalTasks);
         await db.execute(addedSortLocalUserTasks);
         // await db.execute(addreward);

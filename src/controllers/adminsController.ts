@@ -1,6 +1,7 @@
-import { Connection, RowDataPacket, FieldPacket } from 'mysql2/promise';
-import { User } from "../types/Types";
+import mysql, { Connection, RowDataPacket, FieldPacket } from 'mysql2/promise';
+import {Partners, User} from "../types/Types";
 import UserController from "./userController";
+import {OkPacket} from "mysql";
 
 class AdminsController {
     constructor(private db: Connection) {}
@@ -181,21 +182,71 @@ class AdminsController {
         const deleteUserInvitationsSql = `DELETE FROM user_invitations WHERE inviter_id = ? OR invitee_id = ?`;
         const deleteUserTasksSql = `DELETE FROM userTasks WHERE userId = ?`;
         const deleteUserUserLeagueTable = `DELETE FROM UserLeague WHERE userId = ?`;
-        const deleteUserFromAcquisitions =`DELETE FROM acquisitions WHERE userId = ?`;
+        const deleteUserFromAcquisitions = `DELETE FROM acquisitions WHERE userId = ?`;
+
         try {
+            // Удаление из всех зависимых таблиц перед удалением из users
             await this.db.execute(deleteCompletedTasksSql, [userId]);
             await this.db.execute(deleteUserBoostsSql, [userId]);
             await this.db.execute(deleteUserInvitationsSql, [userId, userId]);
             await this.db.execute(deleteUserTasksSql, [userId]);
+            await this.db.execute(deleteUserUserLeagueTable, [userId]); // Перемещено перед удалением из users
+            await this.db.execute(deleteUserFromAcquisitions, [userId]);
+
+            // Теперь удаляем из таблицы users
             await this.db.execute(deleteUserSql, [userId]);
-            await this.db.execute(deleteUserUserLeagueTable, [userId])
-            await this.db.execute(deleteUserFromAcquisitions, [userId])
 
             return "Success delete";
         } catch (error) {
             throw new Error(`Failed to delete user: ${error}`);
         }
     }
+
+
+
+    async createPartner(name: string, token: string) {
+        try {
+            const query = 'INSERT INTO partners (name, token) VALUES (?, ?)';
+            const [result]: [mysql.OkPacket, mysql.FieldPacket[]] = await this.db.execute(query, [name, token]);
+
+            const insertedId = result.insertId;
+            const selectQuery = 'SELECT * FROM partners WHERE id = ?';
+            const [rows]: [RowDataPacket[], FieldPacket[]] = await this.db.execute(selectQuery, [insertedId]);
+
+            if (rows.length > 0) {
+                return rows[0] as Partners;
+            } else {
+                throw new Error('Ошибка при создании партнера.');
+            }
+        } catch (err) {
+            throw new Error(`Failed to create partner: ${err}`);
+        }
+    }
+
+    // Функция для чтения всех записей из таблицы `partners`
+    async getAllPartners() {
+        try {
+            const query = 'SELECT * FROM partners';
+            const [rows] = await this.db.execute(query);
+            return (rows as any[]);
+        } catch (err) {
+            throw new Error(`Failed to retrieve partners: ${err}`);
+        }
+    }
+
+    // Функция для удаления записи из таблицы `partners` по `id` и возврата сообщения
+    async deletePartnerById(id: number) {
+        try {
+            const query = 'DELETE FROM partners WHERE id = ?';
+            await this.db.execute(query, [id]);
+
+                return 'Удаление успешно завершено.';
+        } catch (err) {
+            throw new Error(`Failed to delete partner: ${err}`);
+        }
+    }
+
+
 }
 
 export default AdminsController;

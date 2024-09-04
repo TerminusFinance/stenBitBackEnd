@@ -21,6 +21,8 @@ import acquisitionsRouter from "./routes/acquisitionsRouter";
 import AcquisitionsController from "./controllers/acquisitionsController";
 import userLeagueRouter from "./routes/userLeagueRouter";
 import UserLeagueController from "./controllers/userLeagueController";
+import ExternalApiController from "./controllers/externalApiController";
+import externalApiRouter from "./routes/externalApiRouter";
 
 
 const app = express();
@@ -38,6 +40,7 @@ connectDatabase().then(db => {
     const coinProgressLevelController = new CoinProgressLevelController(db);
     const acquisitionsController = new AcquisitionsController(db);
     const userLeagueController = new UserLeagueController(db);
+    const externalApiController = new ExternalApiController(db);
 
     app.use('/api/users', userRouter(userController));
     app.use('/api/leagues', leagueRouter(leagueController));
@@ -48,6 +51,7 @@ connectDatabase().then(db => {
     app.use('/api/coinLevel', coinProgressLevelRouter(coinProgressLevelController));
     app.use('/api/acquisitions', acquisitionsRouter(acquisitionsController));
     app.use('/api/userLeague', userLeagueRouter(userLeagueController));
+    app.use('/api/external', externalApiRouter(externalApiController));
 
     app.get('/api/img/:filename', (req, res) => {
         const filename = req.params.filename;
